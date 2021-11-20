@@ -4,51 +4,51 @@
 
 IS286	equ	0		;; True if taking advantage of 80286 opcodes.
 
-Macro	 SETUPSEGMENT
+;IF IS286
+;.286
+;ENDIF
+
+SETUPSEGMENT	macro	 
 
 SEGMENT _TEXT	PARA PUBLIC 'CODE'
 	ASSUME	CS:_TEXT
 
 	Endm
 
-Struc	SEG_OFF
-
+SEG_OFF	Struc	
 POFF	dw	?
 PSEG	dw	?
+SEG_OFF	Ends
 
-	Ends
-
-UNION	FARPTR
-
+FARPTR	UNION	
 DPTR	dd	?
 XPTR	SEG_OFF <>
+FARPTR	ENDS
 
-	ENDS
 
-
-macro   ShiftR  REG,TIMES
+ShiftR	macro 	REG,XTIMES
 ;; 2 - shift a register right a number of times.
 IF      IS286
-        shr     REG,TIMES
+        shr     REG,XTIMES
 ELSE
-        REPT    TIMES
+        REPT    XTIMES
 	shr	REG,1
         ENDM
 ENDIF
         endm
 
-macro   ShiftL  REG,TIMES
+ShiftL	macro  	REG,XTIMES
 ;; 3 - shift a register left a number of times
 IF      IS286
-        shl     REG,TIMES
+        shl     REG,XTIMES
 ELSE
-        REPT    TIMES
+        REPT    XTIMES
 	shl	REG,1
         ENDM
 ENDIF
         endm
 
-macro	LSMUL
+LSMUL	macro	
 ;; 4 - performs a long signed multiply AX,DX * BX,CX
 	LOCAL	@@HOP1,@@HOP2
 ;; Long signed multiply
@@ -71,45 +71,45 @@ macro	LSMUL
 	pop	si
 	endm
 
-macro	LongShiftL TIMES
+LongShiftL	macro	XTIMES
 ;; 5 - Shift left AX,DX times.
-	REPT TIMES
+	REPT 	XTIMES
 	shl	ax,1
 	rcl	dx,1
 	ENDM
 	endm
 
-macro	LongShiftR TIMES
+LongShiftR	macro	XTIMES
 ;; 6 - Shifr right AX,DX times
-	REPT TIMES
+	REPT 	XTIMES
 	sar	dx,1
 	rcr	ax,1
 	ENDM
 	endm
 
-macro	ShiftAL REG,TIMES
+ShiftAL	macro	REG,XTIMES
 ;; 7 - shift arithmetic left register, times
 IF      IS286
-	sal	REG,TIMES
+	sal	REG,XTIMES
 ELSE
-        REPT    TIMES
+        REPT    XTIMES
 	sal	REG,1
         ENDM
 ENDIF
 	endm
 
-macro	ShiftAR REG,TIMES
+ShiftAR	macro	REG,XTIMES
 ;; 8 - Shifr arithmatic right register, times
 IF      IS286
-	sar	REG,TIMES
+	sar	REG,XTIMES
 ELSE
-        REPT    TIMES
+        REPT    XTIMES
 	sar	REG,1
         ENDM
 ENDIF
 	endm
 
-macro   PushI   VALUE
+PushI	macro   VALUE
 ;; 9 - Push an immediat onto the stack.
 ;; Push Immediate
 IF      IS286
@@ -120,24 +120,24 @@ ELSE
 ENDIF
         endm
 
-macro   PushEA  DATA
+PushEA	macro   MYDATA
 ;; 10 - Push an effective address onto the stack.
 ;; Push Effective address
 IF      IS286
-        push    offset DATA
+        push    offset MYDATA
 ELSE
-        mov     ax,offset DATA
+        mov     ax,offset MYDATA
         push    ax
 ENDIF
         endm
         
-macro   PushFar DATA
+PushFar	macro   MYDATA
 ;; 11 - Push far address (relative to DS) onto the stack.
         push    ds              ; push the segment
-        PushEA  DATA            ; push the offset
+        PushEA  MYDATA            ; push the offset
         endm
 
-macro   PushAll
+PushAll	macro   
 ;; 12 - Push ALL registers onto the stack.
 ;; Save all registers
 IF      IS286
@@ -157,7 +157,7 @@ ELSE
 ENDIF
         endm
 
-macro   PopAll
+PopAll	macro   
 ;; 13 - Pop all registers off of the stack.
 ;;; Restore all registers from a push all
 IF      IS286
@@ -177,30 +177,28 @@ ELSE
 ENDIF
         endm
 
-macro   DOSTerminate
+DOSTerminate	macro   
 ;; 14 - Terminate back to DOS
 	mov	ah,4Ch
         int     21h
         endm
 
-macro   DosTSR  LOC
+DosTSR	macro   LOC
 ;; 15 - Terminate and stay resident back to DOS
-        lea     dx,[LOC+100h]   ; (End of program plus PSP)
+        xlea    dx,<LOC+100h>   ; (End of program plus PSP)
         int     27h             ; Terminate and stay resident.
         endm
 
-macro   Message data
+Message	macro   mydata
 ;; 16 - Print a '$' terminated string to the console
 	push	ax
         mov     ah,9            ; Function 9 write string
-        lea     dx,[data]       ; Get the address of the message
+        xlea    dx,mydata       ; Get the address of the message
         int     21h             ; Send the message to the screen.
 	pop	ax
         endm
 
-
-
-macro   PENTER  STORAGE
+PENTER	macro   STORAGE
 ;; 17 - Enter a procedue with storage space
 ;; Procedure enter, uses the 286/386 ENTER opcode
 IF      IS286
@@ -214,7 +212,7 @@ ELSE
 ENDIF
         endm
 
-macro   PLEAVE
+PLEAVE	macro   
 ;; 18 - Exit a procedure with stack correction.
 IF      IS286
         leave
@@ -224,7 +222,7 @@ ELSE
 ENDIF
         endm
 
-macro   PushCREGS
+PushCREGS	macro   
 ;; 19 - Save registers for C
         push    es
 	push	ds   ;The Kernel is responsible for maintaining DS
@@ -233,7 +231,7 @@ macro   PushCREGS
         cld
         endm
 
-macro   PopCREGS
+PopCREGS	macro   
 ;; 20 - Restore registers for C
         pop     di
         pop     si
@@ -241,13 +239,13 @@ macro   PopCREGS
         pop     es
         endm
 
-;; Macro used to insert breakpoints in code to invoke the debugger.  Using
+;; macro used to insert breakpoints in code to invoke the debugger.  Using
 ;; the macro allows for easier searches to be done on debug invokations.
-Macro	DoDebug
+DoDebug	macro	
 	int	3
 	endm
 
-Macro	SwapSegs
+SwapSegs	macro	
 	push	es
 	push	ds
 	pop	es
@@ -255,7 +253,7 @@ Macro	SwapSegs
 	endm
 
 
-Macro	CALLF procedure
+CALLF	macro	procedure
 ;; This macro fakes a far call to a procedure which is near and dear to
 ;; us but defined as far.  This is done to avoid fixups and so that
 ;; kernel objects are COMable.	It is used when a kernel service, which
@@ -264,7 +262,7 @@ Macro	CALLF procedure
 	call	near ptr procedure
 	endm
 
-Macro	NibbleOut
+NibbleOut	macro	
 	LOCAL	@@OK
 	push	ax
 	and	ax,0Fh
@@ -279,7 +277,7 @@ Macro	NibbleOut
 	shr	ax,4		; down one nibble
 	endm
 
-Macro	HEXPRINT	reg,xloc,yloc
+HEXPRINT	macro reg,xloc,yloc
 	push	es
 	push	di
 	push	ax
