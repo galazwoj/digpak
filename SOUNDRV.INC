@@ -1,28 +1,28 @@
-ISCOM           equ     1
-ISEXE           equ     0
+;ISCOM           equ     1
+;ISEXE           equ     0
 
-DIG_ADLIB       equ     0       ; Build 1
-DIG_CVXSND      equ     0       ; Build 2
-DIG_VMSND       equ     0       ; Build 3
-DIG_SMSND       equ     0       ; Build 4
-DIG_IBMSND      equ     0       ; Build 5
-DIG_DIGISP      equ     0       ; Build 6
-DIG_TANEXTX     equ     0       ; Build 7
-DIG_TANSLTL     equ     0       ; Build 8
-DIG_SBLASTER    equ     0       ; Build 9
-DIG_SOURCE      equ     0       ; Build 10
-DIG_ECHOII      equ     0       ; Build 11
-DIG_LANTSND     equ     0       ; Build 12
-DIG_IBMBAK      equ     0       ; Build 13
-DIG_IBM1BIT     equ     0       ; Build 14
-DIG_PAUDIO      equ     0       ; Build 15
-DIG_BIGMOUTH    equ     0       ; Build 16
-DIG_MASTER      equ     0       ; BUild 17
-DIG_ADLIBG      equ     0       ; Build 18
-DIG_T2500       equ     0       ; Build 19
-DIG_ARIA        equ     0
+DIG_ADLIB       =       0       ; Build 1
+DIG_CVXSND      =       0       ; Build 2
+DIG_VMSND       =       0       ; Build 3
+DIG_SMSND       =       0       ; Build 4
+DIG_IBMSND      =       0       ; Build 5
+DIG_DIGISP      =       0       ; Build 6
+DIG_TANEXTX     =       0       ; Build 7
+DIG_TANSLTL     =       0       ; Build 8
+DIG_SBLASTER    =       0       ; Build 9
+DIG_SOURCE      =       0       ; Build 10
+DIG_ECHOII      =       0       ; Build 11
+DIG_LANTSND     =       0       ; Build 12
+DIG_IBMBAK      =       0       ; Build 13
+DIG_IBM1BIT     =       0       ; Build 14
+DIG_PAUDIO      =       0       ; Build 15
+DIG_BIGMOUTH    =       0       ; Build 16
+DIG_MASTER      =       0       ; BUild 17
+DIG_ADLIBG      =       0       ; Build 18
+DIG_T2500       =       0       ; Build 19
+DIG_ARIA        =       0       ; Build 20
 
-BACKFILL        equ     0       ; DMA backfill support is 0 by default.
+BACKFILL        =       0       ; DMA backfill support is 0 by default.
 
 MILLIKEN        equ     0
 
@@ -44,16 +44,14 @@ TIMER0          equ     40h     ; port address of timer 0
 portTIMER2      equ     42h     ; port address of timer 2
 TIME_CNTRL      equ     43h     ; 8253 control register port
 
-Struc	SOUNDSPEC
-
+SOUNDSPEC	Struc	
 PLAYADR FARPTR  <>              ; Address of sound sample to be played.
 PLAYLEN         dw      ?       ; Length of sound sample to be played.
 ISPLAYING FARPTR <>             ; Address of our playing sample semephore.
 FREQUENCY       dw      ?       ; Frequency to play it at.
+SOUNDSPEC	Ends
 
-	Ends
-
-Macro	IN_TSR
+IN_TSR	Macro
 	push	ds
 	push	es
 	push	si
@@ -63,14 +61,14 @@ Macro	IN_TSR
 	mov	es,ax
 	endm
 
-Macro	OUT_TSR
+OUT_TSR	Macro	
 	pop	di
 	pop	si
 	pop	es
 	pop	ds
 	endm
 
-Macro	WaitSound
+WaitSound	Macro	
 	LOCAL	@@WT
 @@WT:	mov	ax,689h
 	int	66h
@@ -78,7 +76,7 @@ Macro	WaitSound
 	jnz	@@WT
 	endm
 
-Macro	Dally
+Dally	Macro	
 	jmp	$+2
 	endm
 
@@ -88,17 +86,17 @@ PCM_16_MONO     equ     2
 PCM_16_STEREO   equ     3
 
 ;; Set's the DIGPAK semaphore
-Macro	SetSemaphore
+SetSemaphore	Macro	
 	mov	[cs:INDIGPAK],1
 	endm
 
 ;; Clear's the semaphore, and does an IRET
-Macro	ClearSemaphoreIRET
+ClearSemaphoreIRET	Macro	
 	mov	[cs:INDIGPAK],0
 	iret
 	endm
 
-Macro	ClearSemaphore
+ClearSemaphore	Macro	
 	mov	[cs:INDIGPAK],0
 	endm
 
@@ -107,20 +105,20 @@ Macro	ClearSemaphore
 ;;  in ESI instead of DS:SI.  First make certain it is in the low 1mb
 ;;  of address space.  If not, clearsemaphoreiret.  Otherwise set DS:SI
 ;;  equal to that address.
-Macro	ConvertDPMI seg,indx
+ConvertDPMI Macro myseg,indx
 	LOCAL	@@HOP
 	cmp	[cs:DPMI],0	; In 32 bit DPMI mode?
 	je	@@HOP
 	push	eax		; Save EAX
 	mov	eax,indx	; Get the entire 32 bit flat-model address.
 	shr	eax,4		; leave just the segment portion.
-	mov	seg,ax		 ; place the segment into DS
+	mov	myseg,ax		 ; place the segment into DS
 	and	indx,0Fh	 ; leave just the offset portion.
 	pop	eax
 @@HOP:
 	endm
 
-Macro  GET20BIT
+GET20BIT Macro  	
 	call	makelinear
 ;;;    PUSH   CX
 ;;;    MOV    CL,4
