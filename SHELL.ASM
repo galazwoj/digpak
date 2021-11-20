@@ -1,11 +1,3 @@
-	P386		; Enable 32 bit registers.
-
-DEBUGGING	equ	0
-ACTIVISION	equ	0		; True if building Bill Volk's version.
-DMA_FF_REG	equ    0CH
-
-VERSION_NUMBER	equ	340
-
 ;;
 ;; The MIT license:
 ;;
@@ -35,46 +27,65 @@ VERSION_NUMBER	equ	340
 ;; 3.3	-> auto-init dma on SBLASTER cards, as well as SBP16 support.
 ;; 3.4	-> support for 386 flat-model register passing convention.
 
-        LOCALS                  ;; Enable local labels
+include	compat.inc
 
-        IDEAL                   ;; Use Turbo Assembler's IDEAL mode
-	JUMPS
+IFNDEF  ISCOM
+	IFNDEF  ISEXE
+		ISCOM 	EQU 	1
+		ISEXE	EQU	0
+	ELSE
+		ISCOM 	EQU 	0
+		ISEXE	EQU	1
+	ENDIF
+ENDIF
 
-        INCLUDE "PROLOGUE.MAC"          ;; common prologue
-	INCLUDE "SOUNDRV.INC"
+IF 	ISCOM
+;.MODEL	TINY
+%OUT Selected COM type file
+ENDIF
 
-;; Set's the DIGPAK semaphore
-Macro	SetSemaphore
-	mov	[cs:INDIGPAK],1
-	endm
+IF	ISEXE
+;.MODEL 	SMALL
+%OUT Selected EXE type file
+ENDIF
 
-;; This macro checks the DPMI compliant FLAG
-;;  If DPMI is on, then the address of the SoundStructure passed is
-;;  in ESI instead of DS:SI.  First make certain it is in the low 1mb
-;;  of address space.  If not, clearsemaphoreiret.  Otherwise set DS:SI
-;;  equal to that address.
-Macro	ConvertDPMI seg,indx
-	LOCAL	@@HOP
-	cmp	[cs:DPMI],0	; In 32 bit DPMI mode?
-	je	@@HOP
-	push	eax		; Save EAX
-	mov	eax,indx	; Get the entire 32 bit flat-model address.
-	shr	eax,4		; leave just the segment portion.
-	mov	seg,ax		 ; place the segment into DS
-	and	indx,0Fh	 ; leave just the offset portion.
-	pop	eax
-@@HOP:
-	endm
+IFNDEF  BUILD
+.ERR	<BUILD not defined, compilation aborted>
+ENDIF
 
-;; Clear's the semaphore, and does an IRET
-Macro	ClearSemaphoreIRET
-	mov	[cs:INDIGPAK],0
-	iret
-	endm
+IF (BUILD lt 1) or (BUILD gt 21)
+.ERR 	<bad value of BUILD> 
+; dummy declarations to make masm happy
+;.code
+ _TEXT	SEGMENT USE16
+PlaySound Proc	near
+	ret
+PlaySound endp
 
-Macro	ClearSemaphore
-	mov	[cs:INDIGPAK],0
-	endm
+StopSound Proc	near
+	ret
+StopSound endp
+hard	db	'$'
+msg0	db	"Corrupted Sound Driver"
+ _TEXT	ENDS
+ENDIF
+
+DEBUGGING	equ	0
+ACTIVISION	equ	0		; True if building Bill Volk's version.
+DMA_FF_REG	equ    0CH
+
+VERSION_NUMBER	equ	340
+
+        INCLUDE PROLOGUE.MAC          ;; common prologue
+	INCLUDE SOUNDRV.INC
+
+SMALL_MODEL     equ     1
+
+IF	SMALL_MODEL
+CPROC equ	<Proc near C>
+ELSE
+CPROC equ	<Proc far  C>
+ENDIF
 
 IFNDEF	NOSOUND
 NOSOUND equ	0
@@ -91,7 +102,7 @@ ENDIF
 IFNDEF	SBPRO
 SBPRO	equ	0
 ENDIF
-
+	
 IFNDEF	PAS16
 PAS16	equ	0
 ENDIF
@@ -108,88 +119,90 @@ IFNDEF	SBCLONE
 SBCLONE equ	0
 ENDIF
 
+% ECHO _BUILD_ value: BUILD
+
 ;; Make correct equate versus build equate.
 IF	BUILD EQ 1
-DIG_ADLIB	equ	1
+DIG_ADLIB	=	1
 ENDIF
 
 IF      BUILD EQ 2
-DIG_CVXSND	equ	1
+DIG_CVXSND	=	1
 IF	NOSOUND
-BACKFLLL	equ	0
+BACKFLLL	=	0
 ELSE
-BACKFILL	equ	1
+BACKFILL	=	1
 ENDIF
 ENDIF
 
 IF	BUILD EQ 3
-DIG_VMSND	equ	1
-BACKFILL	equ	1
+DIG_VMSND	=	1
+BACKFILL	=	1
 ENDIF
 IF	BUILD EQ 4
-DIG_SMSND	equ	1
-BACKFILL	equ	1
+DIG_SMSND	=	1
+BACKFILL	=	1
 ENDIF
 IF	BUILD EQ 5
-DIG_IBMSND	equ	1
+DIG_IBMSND	=	1
 ENDIF
 IF	BUILD EQ 6
-DIG_DIGISP	equ	1
+DIG_DIGISP	=	1
 ENDIF
 IF	BUILD EQ 7
-DIG_TANEXTX	equ	1
+DIG_TANEXTX	=	1
 ENDIF
 IF	BUILD EQ 8
-DIG_TANSLTL	equ	1
+DIG_TANSLTL	=	1
 ENDIF
 IF	BUILD EQ 9
-DIG_SBLASTER	equ	1
-BACKFILL	equ	1
+DIG_SBLASTER	=	1
+BACKFILL	=	1
 ENDIF
 IF	BUILD EQ 10
-DIG_SOURCE	equ	1
+DIG_SOURCE	=	1
 ENDIF
 IF	BUILD EQ 11
-DIG_ECHOII	equ	1
+DIG_ECHOII	=	1
 ENDIF
 IF	BUILD EQ 12
-DIG_LANTSND	equ	1
+DIG_LANTSND	=	1
 ENDIF
 IF	BUILD EQ 13
-DIG_IBMBAK	equ	1
+DIG_IBMBAK	=	1
 ENDIF
 IF	BUILD EQ 14
-DIG_IBM1BIT	equ	1
+DIG_IBM1BIT	=	1
 ENDIF
 IF	BUILD EQ 15
-DIG_PAUDIO	equ	1
-BACKFILL	equ	1
+DIG_PAUDIO	=	1
+BACKFILL	=	1
 ENDIF
 IF	BUILD EQ 16
-DIG_BIGMOUTH	equ	1
-BACKFILL	equ	1
+DIG_BIGMOUTH	=	1
+BACKFILL	=	1
 ENDIF
 IF	BUILD EQ 17
-DIG_MASTER	equ	1
+DIG_MASTER	=	1
 ENDIF
 IF	BUILD EQ 18
-DIG_ADLIBG	equ	1
-BACKFILL	equ	1
+DIG_ADLIBG	=	1
+BACKFILL	=	1
 ENDIF
 IF	BUILD EQ 19
-DIG_T2500	equ	1
+DIG_T2500	=	1
 ENDIF
-IF BUILD EQ 20
-DIG_ARIA EQU 1
-BACKFILL equ 0
+IF 	BUILD EQ 20
+DIG_ARIA 	= 	1
+BACKFILL 	= 	0
 IFNDEF ARIA_STEREO
-ARIA_STEREO equ 1
+ARIA_STEREO 	= 	1
 ENDIF
 ENDIF
 IF	BUILD EQ 21
-DIG_VBEAI	equ	1
-DIG_PAUDIO      equ     1
-BACKFILL	equ	1
+DIG_VBEAI	=	1
+DIG_PAUDIO      =     	1
+BACKFILL	=	1
 ENDIF
 
 IFNDEF	DIG_VBEAI
@@ -198,7 +211,7 @@ ENDIF
 
 
 IF	DIG_LANTSND
-;;	  include "vpi.mac"
+;;	  include vpi.mac
 
 ; Defined encoding methods:
 ;
@@ -213,8 +226,7 @@ VWFM_nyb62         equ  1               ; nybble 62 sample compression of #0
 
 VCB_RESERVED_SIZE  EQU  16
 
-Struc		   VCB
-
+VCB	Struc		   
  VCB_command       DB   ?               ; Command code
  VCB_buffer@	   FARPTR  <>		; Buffer address
  VCB_length        DW   0               ; Length of buffer
@@ -224,10 +236,8 @@ Struc		   VCB
  VCB_cmd_cplt      DB   0               ; ff = Pending, other = Complete
  VCB_word_format   DW   ?               ; Voice word format (see above)
  VCB_rpt_count     DW   0               ; # of times to execute cmd - 1
- VCB_reserved      DB   VCB_RESERVED_SIZE DUP(0)
-					; Reserved for future use
-					;  (Should be set to 0)
-			 ENDS
+ VCB_reserved      DB   VCB_RESERVED_SIZE DUP(0) 	; Reserved for future use (Should be set to 0)
+VCB	 ENDS
 
 VCB_UNRESERVED_SIZE EQU VCB_reserved - VCB_command
 VCB_SIZE           EQU  VCB_UNRESERVED_SIZE+VCB_RESERVED_SIZE
@@ -265,14 +275,12 @@ VCA_ID_LV_MCA      EQU   1              ; LANtastic Voice (tm) u-Channel
 ;       Adapter status buffer (Returned by STATUS VCB request):
 ;
 
-Struc		  VCB_statbuff
-
+VCB_statbuff	Struc		  
  vst_drvr_name     DB   64 DUP (?)      ; ASCIZ Voice driver name
  vst_adapt_id      DW   0               ; Voice adapter ID number (see above)
  vst_word_format   DW   ?               ; Hardware word format code
  vst_channel_mask  DB   ?               ; Channel capabilities (see above)
-
-			 ENDS
+VCB_statbuff	 ENDS
 
 VCB_STATBUFF_SIZE  EQU  69
 
@@ -336,20 +344,20 @@ ENDIF
 
 IF	DIG_SOURCE
 
-Macro	SourceOn
+SourceOn	Macro	
 	push	dx
 	push	ax
 	MOV	DX,[cs:PORTMOD+1] ;Address of LPT1 control port
 	add	dx,2
-				IN      AL,DX
-				AND     AL,11110111b    ;Clear bit 3
+	IN      AL,DX
+	AND     AL,11110111b    ;Clear bit 3
 	jmp	$+2
-				OUT     DX,AL           ;Turn on SS
+	OUT     DX,AL           ;Turn on SS
 	pop	ax
 	pop	dx
 	endm
 
-Macro	SourceOff
+SourceOff	Macro
 	push	dx
 	push	ax
 	MOV	DX,[cs:PORTMOD+1]
@@ -367,13 +375,15 @@ ENDIF
 
 KINT	equ	66h
 
-SEGMENT  _TEXT PARA PUBLIC 'CODE'
-				ENDS
+;.CODE
+.386					; Enable 32 bit registers.
 
-	ASSUME	CS: _TEXT, DS: _TEXT, SS: NOTHING, ES: NOTHING
+ _TEXT	SEGMENT PARA PUBLIC 'CODE' USE16
+ _TEXT	ENDS
 
+	ASSUME	CS: _TEXT, DS: _TEXT, SS: NOTHING, ES: _TEXT;NOTHING
 
-SEGMENT _TEXT
+ _TEXT	SEGMENT
 IF	ISCOM
 	org	100h
 ENDIF
@@ -472,7 +482,7 @@ ENDIF
 IF	DIG_T2500
 	db	"Tandy 2500 XL",0,13,10
 ENDIF
-IF DIG_ARIA
+IF 	DIG_ARIA
 	db  "Aria, Sierra Semiconductor",0,13,10
 ENDIF
 	db	"The Audio Solution, Copyright (c) 1993",0,13,10
@@ -593,8 +603,8 @@ ENDIF
 								;Report DMAC position
 								;
 
-Macro	REPORTDMA DMA
-LOCAL __exit
+REPORTDMA Macro	DMA	
+	LOCAL __exit
 
  IF DIG_PAUDIO
 	push	bx
@@ -605,7 +615,7 @@ LOCAL __exit
 	mov	si,[cs:DMAPointer] ; point to the DMA controller table
 
 	xor	dx,dx
-	mov	dl,[cs:si+_dmaclear]; flipflop register
+	mov	dl,cs:dmaaddr._dmaclear[si]; flipflop register
 	out	dx,al		;clear byte FF
 
   ; clear the flip flop
@@ -644,7 +654,7 @@ __exit:
 	push dx
 
 	xor dx,dx
-	mov dl,[BYTE cs:&DMA]
+	mov dl,[BYTE ptr cs:&DMA]
 	shl dx,1
 	add dx,1
 
@@ -716,7 +726,7 @@ ELSE
 PlayingSound	dw	0	; Flag true when sound sample is playing.
 ENDIF
 CallBacks	dw	0	; Callback to application flag.
-LABEL		CALLBACK	DWORD	     ; Callback address label.
+CallBack	LABEL DWORD	     ; Callback address label.
 CallLow 	dw	0	; Low word of callback address.
 CallHigh	dw	0	; High word of callback address.
 CallDS		dw	0	; Value of DS register at callback time.
@@ -734,7 +744,8 @@ KJUMP	FARPTR	<>		; Address
 OLDIN	FARPTR	<>		; Original interupt vector.
 ID      db      'KERN'          ; 4B45524Eh Interupt identifier string.
 IND     db      'KR'            ; 4B52h indicates a kernel installed interupt.
-Proc	SoundInterupt far
+
+SoundInterupt Proc far
 ;;; Usage: DS:SI -> point to sound structure to play.
 ;; FUNCT1  AX = 0688h	 DigPlay
 ;; FUNCT2  AX = 0689h	 Sound Status
@@ -776,7 +787,7 @@ ENDIF
 	shl	ax,1
 	add	ax,offset JumpTable
 	xchg	ax,bx
-	mov	bx,[cs:bx]
+	mov	bx,cs:[bx]
 	xchg	ax,bx
 	mov	[cs:JumpPtr],ax
 	jmp	[cs:JumpPtr]	;; Near jump will be modified!!
@@ -789,7 +800,7 @@ ENDIF
 	jmp	[cs:OLDIN.DPTR] 	; Chain to original interrupt vector.
 @@IRET:
 	ClearSemaphoreIRET
-	endp
+SoundInterupt endp
 
 
 FUNCT1:
@@ -942,7 +953,7 @@ ELSE
 ENDIF
 ENDIF
 IF	NOSOUND
-	or	ax,FIXEDFREQ
+	or_ax_n FIXEDFREQ
 	mov	dx,256
 ENDIF
 IF	DIG_IBMSND
@@ -989,17 +1000,17 @@ ENDIF
 IF	DIG_PAUDIO
 	mov	ax,(PLAYBACK OR DMABACKFILL)   ;;** OR AUDIORECORD)
 ENDIF
-IF DIG_ARIA
+IF 	DIG_ARIA
 	mov  ax,(PLAYBACK OR STEREOPAN)
-IF ARIA_STEREO
+IF 	ARIA_STEREO
 	or   ax,STEREOPLAY
 ENDIF
 ENDIF
 IF	FOREGROUND
-	and	ax,0FFFEh	; Strip background bit OFF
+	and_ax_n 0FFFEh	; Strip background bit OFF
 ENDIF
 IF	SBPRO
-	or	ax,STEREOPAN
+	or_ax_n STEREOPAN
 ENDIF
 IF	STFX OR SBPRO OR DIG_PAUDIO
 	or	ax,STEREOPLAY
@@ -1009,7 +1020,7 @@ IF	PAS16 OR DIG_ADLIBG
 	or	ax,PCM16STEREO
 ENDIF
 	mov	bx,cs
-	lea	cx,[IDENTIFIER]
+	xlea	cx,IDENTIFIER
 	ClearSemaphoreIRET
 FUNCT6:
 ;;**************************************************************************
@@ -1102,7 +1113,7 @@ FUNCT8:
 ;:		terminated.
 ;;**************************************************************************
 	mov	[cs:PENDING],0	; Turn pending flag OFF when stop-sound called.
-	mov	[word cs:LOOPING],0
+	mov	[cs:LOOPING],0
 IF	DIG_PAUDIO OR DIG_SBLASTER
 ELSE
 	cmp	[cs:PlayingSound],0	; Currently playing any sound?
@@ -1161,8 +1172,8 @@ FUNCTB:
 ;;		DeInstall code.  Not to be called by an application program!
 ;;**************************************************************************
 	mov	[cs:CallBacks],0	;
-	mov	[word cs:CallBack],0
-	mov	[word cs:CallBack+2],0
+	mov	word ptr [cs:CallBack],0
+	mov	word ptr [cs:CallBack+2],0
 IF	DIG_MASTER
 	push	ds
 	push	cs
@@ -1175,17 +1186,17 @@ IF	DIG_PAUDIO OR DIG_SBLASTER
 
 	push	cs
 	pop	ds
-	call	_ctv_uninstall
+	call	ctv_uninstall
 
 	pop	ds
 ENDIF
 IF	DIG_ADLIBG
-	call	_ShutDownAdlibGold
+	call	ShutDownAdlibGold
 ENDIF
 IF	DIG_SOURCE
 	SourceOff
 ENDIF
-IF DIG_ARIA
+IF 	DIG_ARIA
 	push ds
 	push cs
 	pop  ds
@@ -1228,7 +1239,7 @@ FUNCTD:
 	ConvertDPMI ds,esi
 	push	cs
 	pop	es
-	lea	di,[LOOPSND]
+	xlea	di,LOOPSND
 	mov	cx,SIZE LOOPSND
 	rep	movsb
 	mov	ax,068Fh	; Stop any currently playing sound.
@@ -1238,14 +1249,14 @@ FUNCTD:
 	mov	ds,ax
 	mov	dx,ax		;
 	mov	ax,068Eh
-	lea	bx,[LoopBack]	;
+	xlea	bx,LoopBack	;
 	int	66h		; Set loop callback.
 	PopAll
 	push	cs
 	pop	ds
-	lea	si,[LOOPSND]
-	mov	[word cs:LOOPSOUND],si
-	mov	[word cs:LOOPSOUND+2],ds
+	xlea	si,LOOPSND
+	mov	word ptr [cs:LOOPSOUND],si
+	mov	word ptr [cs:LOOPSOUND+2],ds
 	mov	[cs:FROMLOOP],1 ; Set from looping semephore
 	mov	ax,068Bh	; Do FUNCT4
 	jmp	FUNCT4		; Do a DigPlay2
@@ -1267,13 +1278,13 @@ ELSE
 	mov	ax,[cs:PlayingSound]
 ENDIF
 	or	ax,ax		; Currently playing a sound?
-	jnz	@@POST		; yes->try to post pending.
+	jnz	@@POST1		; yes->try to post pending.
 	sti			; We can play it now.
 	call	DoSoundPlay	;
 	xor	ax,ax		; Return, audio sample is now playing.
 	PopCREGS
 	ClearSemaphoreIRET
-@@POST: cmp	[cs:PENDING],1	; Already have a pending sound effect?
+@@POST1: cmp	[cs:PENDING],1	; Already have a pending sound effect?
 	jne	@@POST2 	; no, post it for pending play.
 	mov	ax,2		; return code of two.
 	PopCREGS
@@ -1283,14 +1294,14 @@ ENDIF
 	push	di
 	push	cs
 	pop	es
-	lea	di,[PENDSND]	; Pending sound.
+	xlea	di,PENDSND	; Pending sound.
 	mov	cx,SIZE PENDSND
 	rep	movsb
 	mov	[cs:PENDING],1
 	mov	[cs:CallBacks],1
-	mov	[word cs:CallBack],offset PlayPending
-	mov	[word cs:CallBack+2],cs
-	mov	[word cs:CallDS],cs
+	mov	word ptr cs:[CallBack],offset PlayPending
+	mov	word ptr cs:[CallBack+2],cs
+	mov	word ptr cs:[CallDS],cs
 	pop	di
 	pop	es
 	mov	ax,1		; Posted as pending.
@@ -1365,7 +1376,7 @@ IF	SBPRO
 ELSE
 	xor	ax,ax		; Doesn't support stereo panning.
 ENDIF
-IF DIG_ARIA
+IF 	DIG_ARIA
 	push ds
 	push cs
 	pop  ds
@@ -1393,8 +1404,8 @@ FUNCT11:
 	cmp	dx,PCM_8_MONO	; ALL drivers support 8 bit PCM mono sound.
 	je	@@OK
 
-IF DIG_ARIA
-IF ARIA_STEREO
+IF 	DIG_ARIA
+IF 	ARIA_STEREO
 	cmp  dx,2
 ELSE
 	cmp  dx,1
@@ -1425,11 +1436,13 @@ ENDIF
 @@OK:	mov	[cs:PlayMode],dx
 IF	DIG_PAUDIO
 	mov	[cs:StereoMono],0FFh
+	nop				;tasm compatible
 	cmp	dx,PCM_8_STEREO
 	je	@@STEREO
 	cmp	dx,PCM_16_STEREO
 	jne	@@OK2
 @@STEREO:mov	[cs:StereoMono],0
+	nop	                	;tasm compatible
 @@OK2:
 ENDIF
 	mov	ax,1		; Set!
@@ -1448,8 +1461,8 @@ FUNCT12:
 ;;
 ;;**************************************************************************
 	mov	dx,cs		; Code segment.
-	lea	ax,[PENDING]	; Address of pending flag.
-	lea	bx,[INDIGPAK]	; Address of semaphore address.
+	xlea	ax,PENDING	; Address of pending flag.
+	xlea	bx,INDIGPAK	; Address of semaphore address.
 	ClearSemaphoreIRET
 
 FUNCT13:
@@ -1587,20 +1600,20 @@ BI_R_PCM        equ 0dh
 
 	mov	ax,0bc03h	      ;get driver function table address
 	int	2fh
-	mov	[WORD MV_ftable],bx
-	mov	[WORD MV_ftable+2],dx
+	mov	[WORD PTR MV_ftable],bx
+	mov	[WORD PTR MV_ftable+2],dx
 
 	mov	bx,[LEFTVOL]
 	mov	cx,BI_OUTPUTMIXER
 	mov	dx,BI_L_PCM
 	les	di,[MV_ftable]
-	call	[dword es:di+0]
+	call	dword ptr es:[di+0]
 
 	mov	cx,BI_OUTPUTMIXER
 	mov	dx,BI_R_PCM
 	les	di,[MV_ftable]
 	mov	bx,[RIGHTVOL]
-	call	[dword es:di+0]
+	call	dword ptr es:[di+0]
 
 	pop	si
 	pop	di
@@ -1608,7 +1621,7 @@ BI_R_PCM        equ 0dh
 	pop	ds
 	mov	ax,1
 ENDIF
-IF DIG_ARIA
+IF 	DIG_ARIA
 	PushCREGS
 	push ds
 	push cs
@@ -1638,54 +1651,50 @@ RIGHTVOL dw	?
 MV_ftable	dd	?
 ENDIF
 
-Macro  GET20BIT
-			 PUSH   CX
-			 MOV    CL,4
-			 ROL    DX,CL
-			 MOV    CX,DX
-			 AND    DX,0FH
-			 AND    CX,0FFF0H
-			 ADD    AX,CX
-			 ADC    DX,0
-			 POP    CX
-			 endm
+GET20BIT	Macro	
+	 PUSH   CX
+	 MOV    CL,4
+	 ROL    DX,CL
+	 MOV    CX,DX
+	 AND    DX,0FH
+	 AND    CX,0FFF0H
+	 ADD    AX,CX
+	 ADC    DX,0
+	 POP    CX
+	 endm
 
-Proc	CheckBoundary	near
-	ARG	SOURCE:DWORD,SLEN:WORD
-	PENTER	0
-
-	mov	ax,[word SOURCE]
-	mov	dx,[word SOURCE+2]
+CheckBoundary	CPROC SOURCE:DWORD,SLEN:WORD
+	mov	ax,[word ptr SOURCE]
+	mov	dx,[word ptr SOURCE+2]
 	GET20BIT		; Into 20 bit mode.
 	mov	bx,dx		; Save DMA page.
-	mov	ax,[word SOURCE]
-	mov	dx,[word SOURCE+2]
+	mov	ax,[word ptr SOURCE]
+	mov	dx,[word ptr SOURCE+2]
 	add	ax,[SLEN]		; Point to end.
 	GET20BIT
 	mov	ax,1		; Default is OK.
-	cmp	bl,dl		; Same DMA page?
-	je	@@OK
+	cmp_bl_dl		; Same DMA page?
+	je	@f
 	xor	ax,ax		; Didn't work.
-@@OK:
-	PLEAVE
+@@:
 	ret
-	endp
+CheckBoundary	endp
 
 
-Proc	PlayPending	far
+PlayPending Proc far
 	cmp	[PENDING],1  ; Pending?
-	jne	@@not
+	jne	@F
 	mov	[PENDING],0
 	mov	[cs:CallBacks],0	; No longer have one pending..
-	lea	si,[PENDSND]	; Address of pending sound.
+	xlea	si,PENDSND	; Address of pending sound.
 	call	DoSoundPlay	; Do a sound play call.
 	ret
-@@not:
+@@:
 	mov	[cs:CallBacks],0	; Disable callbacks.
 	ret
-	endp
+PlayPending	endp
 
-Proc	DoSoundPlay	near
+DoSoundPlay Proc near
 	PushCREGS		; Save all of the important C registers.
 	call	SetAudio
 IF DIG_ARIA
@@ -1710,10 +1719,10 @@ ENDIF
 	call	PlaySound		; Restore important C registers.
 	PopCREGS
 	ret
-	endp
+DoSoundPlay endp
 
 
-Proc	CheckCallBack	near
+CheckCallBack Proc near
 	cmp	[cs:CallBacks],0	; Callbacks enabled?
 	je	@@GOUT		; no, exit.
 	PushAll 		; Save all registers
@@ -1722,7 +1731,7 @@ Proc	CheckCallBack	near
 	PopAll			; Restore all registers.
 @@GOUT:
 	ret
-	endp
+CheckCallBack	endp
 
 INDIGPAK	dw	0	; Inside DigPak semaphore.
 
@@ -1737,39 +1746,39 @@ LOOPSND 	SOUNDSPEC	<>
 PENDING 	dw	0	; True, when second sound sample is pending.
 PENDSND         SOUNDSPEC <>    ; Sound structure of pending sound.
 
-Proc	LoopBack	far
+LoopBack Proc far
 	mov	ax,068Bh	; Play preformated data.
 	mov	[cs:FROMLOOP],1
 	lds	si,[LOOPSOUND]	;
 	int	66h		; Start playing the sound again.
 	ret
-	endp
+LoopBack endp
 
-Proc    SetAudio        near
+SetAudio Proc near
 IF	DIG_PAUDIO OR DIG_SBLASTER
-	mov	[ds:(SOUNDSPEC ptr si).ISPLAYING.XPTR.POFF],offset _voice_status
+	mov	(SOUNDSPEC ptr ds:[si]).ISPLAYING.XPTR.POFF,offset _voice_status
 ELSE
-	mov	[ds:(SOUNDSPEC ptr si).ISPLAYING.XPTR.POFF],offset PlayingSound
+	mov	(SOUNDSPEC ptr ds:[si]).ISPLAYING.XPTR.POFF,offset PlayingSound
 ENDIF
-	mov	[ds:(SOUNDSPEC ptr si).ISPLAYING.XPTR.PSEG],cs
-	les	bx,[ds:(SOUNDSPEC ptr si).PLAYADR.DPTR]
-	mov	cx,[ds:(SOUNDSPEC ptr si).PLAYLEN]
-	mov	dx,[ds:(SOUNDSPEC si).FREQUENCY]
+	mov	(SOUNDSPEC ptr ds:[si]).ISPLAYING.XPTR.PSEG,cs
+	les	bx,(SOUNDSPEC ptr ds:[si]).PLAYADR.DPTR
+	mov	cx,(SOUNDSPEC ptr ds:[si]).PLAYLEN
+	mov	dx,(SOUNDSPEC ptr ds:[si]).FREQUENCY
 	push	cs
 	pop	ds		; DS = Code group.
 	ret
-	endp
+SetAudio endp
 
-Proc	EndLoop near
+EndLoop Proc	near
 	mov	[cs:CallBacks],0	;
-	mov	[word cs:CallBack],0
-	mov	[word cs:CallBack+2],0
-	mov	[word cs:LOOPING],0
+	mov	word ptr cs:[CallBack],0
+	mov	word ptr cs:[CallBack+2],0
+	mov	word ptr cs:[LOOPING],0
 	call	StopSound
 	ret
-	endp
+EndLoop	endp
 
-Proc	CompleteSound	near
+CompleteSound Proc near
 	cmp	[cs:FROMLOOP],1    ; In loop callback?
 	jne	@@YES
 	call	EndLoop 	; don't wait for loop to complete, end it!
@@ -1781,12 +1790,12 @@ ELSE
 ENDIF
 	jne	@@WT
 	ret
-	endp
+CompleteSound	endp
 
 IF	DIG_T2500 OR DIG_SOURCE
-Proc	Compute7000	near
+Compute7000 Proc near
 	cmp	dx,7000
-	jle	@@OK
+	jle	@F
 	push	bx
 	push	dx
 	mov	ax,cx
@@ -1797,12 +1806,12 @@ Proc	Compute7000	near
 	mov	cx,ax
 	pop	bx
 	mov	dx,7000 	; Playback freq is now 9000!
-@@OK:
+@@:
 	ret
-	endp
+Compute7000	endp
 
 ;; Downsample input sound sample to 9khz!
-Proc	DownSample7000	near
+DownSample7000 Proc near
 	PushAll
 
 	cmp	dx,7000 		; <= 8khz?
@@ -1836,14 +1845,14 @@ Proc	DownSample7000	near
 @@DON:
 	PopAll
 	ret
-	endp
+DownSample7000	endp
 
 ENDIF
 
 IF	NOSOUND
-Proc	Compute256	near
+Compute256 Proc	near
 	cmp	dx,256
-	jle	@@OK
+	jle	@F
 	push	bx
 	push	dx
 	mov	ax,cx
@@ -1854,15 +1863,15 @@ Proc	Compute256	near
 	mov	cx,ax
 	pop	bx
 	mov	dx,256		; Playback freq is now 9000!
-@@OK:
+@@:
 	ret
-	endp
+Compute256	endp
 ENDIF
 
 IF	DIG_ADLIB OR DIG_IBMSND OR DIG_TANEXTX OR DIG_ECHOII OR DIG_IBMBAK
-Proc	Compute9000	near
+Compute9000 Proc near
 	cmp	dx,9000
-	jle	@@OK
+	jle	@F
 	push	bx
 	push	dx
 	mov	ax,cx
@@ -1873,12 +1882,12 @@ Proc	Compute9000	near
 	mov	cx,ax
 	pop	bx
 	mov	dx,9000 	; Playback freq is now 9000!
-@@OK:
+@@:
 	ret
-	endp
+Compute9000	endp
 
 ;; Downsample input sound sample to 9khz!
-Proc	DownSample9000	near
+DownSample9000 Proc near
 	PushAll
 
 	cmp	dx,9000 		; <= 8khz?
@@ -1912,7 +1921,7 @@ Proc	DownSample9000	near
 @@DON:
 	PopAll
 	ret
-	endp
+DownSample9000	endp
 ENDIF
 
 ;; Ok, here is all of the adlib gold source.
@@ -1982,7 +1991,7 @@ packing         dw ?
 ;****************************************************************************
 ; MACRO AREA
 
-Macro	P_MMA_write	 ARG1,ARG2,ARG3
+P_MMA_write Macro ARG1,ARG2,ARG3
 	mov	ax,ARG3
 	push	ax
 	mov	ax,ARG2
@@ -1993,14 +2002,14 @@ Macro	P_MMA_write	 ARG1,ARG2,ARG3
 	add	sp,6
 	endm
 
-Macro	M_get_ctrl_reg	REG
+M_get_ctrl_reg	Macro REG
 	mov	ax,REG
 	push	ax
 	call	get_ctrl_reg
 	add	sp,2
 	endm
 
-Macro	M_set_ctrl_reg REG,VAL
+M_set_ctrl_reg Macro REG,VAL
 	push	VAL
 	mov	ax,REG
 	push	ax
@@ -2008,64 +2017,55 @@ Macro	M_set_ctrl_reg REG,VAL
 	add	sp,4
 	endm
 
-Macro	FAR_TO_HUGE   fp_seg,fp_off		;normalize far pointer
-                push ax bx             
-                mov ax,fp_seg
-								mov bx,fp_off
-                shr bx,1
-                shr bx,1
-                shr bx,1
-                shr bx,1
-                add ax,bx
-                mov fp_seg,ax
-                and fp_off,0fh
-                pop bx ax
-                ENDM
+FAR_TO_HUGE Macro  fp_seg,fp_off		;normalize far pointer
+	push 	ax 
+	push	bx             
+	mov 	ax,fp_seg
+	mov 	bx,fp_off
+	shr 	bx,1
+	shr 	bx,1
+	shr 	bx,1
+	shr 	bx,1
+	add 	ax,bx
+	mov 	fp_seg,ax
+	and 	fp_off,0fh
+	pop 	bx 
+	pop	ax
+	ENDM
 
-Macro	ADD_PTR  add_l,add_h,pseg,poff	   ;add 32-bit dword to far ptr
-                push bx
-                push cx
-                mov bx,pseg
-                xor cx,cx
-                REPT 4
-                shl bx,1
-                rcl cx,1
-                ENDM
-                add bx,poff
-                adc cx,0
-                add bx,add_l
-                adc cx,add_h
-                mov poff,bx
-                and poff,1111b
-                REPT 4
-                shr cx,1
-                rcr bx,1
-                ENDM
-                mov pseg,bx
-                pop cx
-                pop bx
-                ENDM
+ADD_PTR Macro add_l,add_h,pseg,poff	   ;add 32-bit dword to far ptr
+	push bx
+	push cx
+	mov bx,pseg
+	xor cx,cx
+	REPT 4
+		shl bx,1
+		rcl cx,1
+	ENDM
+	add bx,poff
+	adc cx,0
+	add bx,add_l
+	adc cx,add_h
+	mov poff,bx
+	and poff,1111b
+	REPT 4
+		shr cx,1
+		rcr bx,1
+	ENDM
+	mov pseg,bx
+	pop cx
+	pop bx
+	ENDM
 
-SMALL_MODEL	equ	1
-
-Macro	CPROC	name
-	public	_&name
-IF	SMALL_MODEL
-Proc	_&name	near
-ELSE
-Proc	_&name	far
-ENDIF
-	endm
-
-Proc	halt_DMA	near
+halt_DMA Proc	near
 	mov	ax,[PRC_0_shadow]
 	and	ax,11111110b	    ;clear GO bit
 	P_MMA_write 0,9,ax
 	ret
-	endp
+halt_DMA endp
 
 ;****************************************************************************
-Proc	StopSound	near
+StopSound Proc	near
 	PushCREGS
 	push	cs
 	pop	ds		; DS=CS
@@ -2073,7 +2073,7 @@ Proc	StopSound	near
 	pushf
 	cli
 	cmp	[PlayingSound],0	; Currently playing a sound?
-	je	@@NOT		; ->skip, not playing a sound anyway.
+	je	@F		; ->skip, not playing a sound anyway.
 
 	call	IRQ_rest_vect		   ; Restore the interrupt vector.
 	call	halt_DMA		; Halt the DMA transfer.
@@ -2082,11 +2082,11 @@ Proc	StopSound	near
 
 	call	CheckCallBack	;
 
-@@NOT:
+@@:
 	popf
 	PopCREGS
 	ret
-	endp
+StopSound endp
 
 ;****************************************************************************
 ;*                                                                          *
@@ -2094,37 +2094,34 @@ Proc	StopSound	near
 ;*                                                                          *
 ;****************************************************************************
 
-Proc	IO_wait near
+IO_wait Proc	 near
 	mov	cx,500
 	mov	dx,[CTRL_ADDR]
 @@wait: in	al,dx
 	and	al,01000000b
 	loopnz	@@wait
 	ret
-	endp
+IO_wait	endp
 
 ;****************************************************************************
-Proc	enable_ctrl	near
+enable_ctrl Proc near
 	mov	dx,[CTRL_ADDR]
 	mov	al,0ffh
 	out	dx,al
 	ret
-	endp
+enable_ctrl	endp
 
 ;****************************************************************************
-Proc	disable_ctrl	near
+disable_ctrl Proc	near
 	call	IO_wait
 	mov	dx,[CTRL_ADDR]
 	mov	al,0feh
 	out	dx,al
 	ret
-	endp
+disable_ctrl	endp
 
 ;****************************************************************************
-Proc	get_ctrl_reg
-	ARG	RegNum:WORD
-	PENTER	0
-
+get_ctrl_reg CPROC RegNum:WORD
 	call	IO_wait
 	mov	dx,[CTRL_ADDR]
 	mov	ax,[RegNum]
@@ -2132,16 +2129,11 @@ Proc	get_ctrl_reg
 	call	IO_wait
 	mov	dx,[CTRL_DATA]
 	in	al,dx
-
-	PLEAVE
 	ret
-	ENDP
+get_ctrl_reg	ENDP
 
 ;****************************************************************************
-Proc	set_ctrl_reg
-	ARG	RegNum:WORD,Val:WORD
-	PENTER	0
-
+set_ctrl_reg CPROC RegNum:WORD,Val:WORD
 	call	IO_wait
 	mov	dx,[CTRL_ADDR]
 	mov	ax,[RegNum]
@@ -2150,25 +2142,20 @@ Proc	set_ctrl_reg
 	mov	dx,[CTRL_DATA]
 	mov	ax,[Val]
 	out	dx,al
-
-	PLEAVE
 	ret
-	endp
+set_ctrl_reg	endp
 
 ;****************************************************************************
-Proc	MMA_wait	near
+MMA_wait	Proc near
 	mov	cx,100
 @@kill_time:
 	jmp	$+2
 	loop	@@kill_time
 	ret
-	endp
+MMA_wait endp
 
 ;****************************************************************************
-Proc	MMA_write	near
-	ARG	Chan:WORD,Reg:WORD,Val:WORD
-	PENTER	0
-
+MMA_write CPROC Chan:WORD,Reg:WORD,Val:WORD
 	mov	ax,[Reg]
 	mov	dx,[DSP_ADDR]
 	out	dx,al
@@ -2179,14 +2166,12 @@ Proc	MMA_write	near
 	mov	ax,[Val]
 	out	dx,al
 	call	MMA_wait
-
-	PLEAVE
 	ret
-	endp
+MMA_write 	endp
 
 
 ;****************************************************************************
-Proc	reset_DSP	near
+reset_dsp Proc	near
 	PushCREGS
 
 	P_MMA_write  0,9,10000000b
@@ -2202,20 +2187,20 @@ Proc	reset_DSP	near
 
 	PopCREGS
 	ret
-	endp
+reset_dsp	endp
 
 
-Proc	set_volume	near
+set_volume Proc	near
 	PushCREGS
 
 	mov	si,127
 	sub	si,[panpot]
 	mov	al,[pan_graph+si]
-	mul	[BYTE main_volume]
+	mul	[BYTE ptr main_volume]
 	mov	di,ax		    ;DI = right volume 0-16129
 	mov	si,[panpot]
 	mov	al,[pan_graph+si]
-	mul	[BYTE main_volume]
+	mul	[BYTE ptr main_volume]
 	mov	si,ax		    ;SI = left volume 0-16129
 
 	mov	cx,6
@@ -2228,18 +2213,18 @@ Proc	set_volume	near
 
 	PopCREGS
 	ret
-	endp
+set_volume	endp
 
 
-Proc	hardware_xfer	near
+hardware_xfer Proc near
 	mov	ax,[PRC_0_shadow]
-	or	ax,00000001b	     ;set GO bit
+	or_ax_n 00000001b	     ;set GO bit
 	P_MMA_write 0,9,ax
 	ret
-	endp
+hardware_xfer	endp
 
 ;; Here we attempt to detect the presence of an Adlib Gold card.
-Proc	DetectAdlibGold near
+DetectAdlibGold Proc near
 	pushf
 	cli
 
@@ -2289,8 +2274,8 @@ Proc	DetectAdlibGold near
 	mov	ax,0
 	jne	@@exit
 
-	 xor	si,0101b	      ;control chip found: restore old
-	 xor	di,1010b	      ;values & re-enable FM sound
+	xor	si,0101b	      ;control chip found: restore old
+	xor	di,1010b	      ;values & re-enable FM sound
 
 	push	si
 	PushI	9
@@ -2308,7 +2293,7 @@ Proc	DetectAdlibGold near
 @@exit:
 	popf			 ;return AX=0 if not found
 	ret
-	endp
+DetectAdlibGold endp
 
 LastSet dw	-1		; Previously set frequency.
 LastMode dw	-1
@@ -2317,7 +2302,7 @@ LastMode dw	-1
 ;;   AX -> contains frequency we are matching against.
 ;;   DX -> closest match so far.
 ;;   DI -> will contain closest INDEX.
-Macro	Closest FREQ,INDEX
+Closest Macro FREQ,INDEX
 	LOCAL	@@OK,@@NOT
 	mov	bx,FREQ/2
 	sub	bx,ax
@@ -2330,12 +2315,8 @@ Macro	Closest FREQ,INDEX
 @@NOT:
 	endm
 
-Proc	set_sample_rate near
-	ARG	FREQ:WORD
-	PENTER	0
+set_sample_rate CPROC FREQ:WORD
 	PushCREGS
-
-
 	mov	ax,[PlayMode]
 	cmp	ax,[LastMode]
 	je	@@DOFREQ
@@ -2399,19 +2380,15 @@ Proc	set_sample_rate near
 	popf
 @@DONT:
 	PopCREGS
-	PLEAVE
 	ret
-	endp
+set_sample_rate	endp
 
 ;****************************************************************************
 ; INTERUPT AND DMA CODE SECTION
 
 ;****************************************************************************
-Proc	IRQ_set_vect	near
-	ARG	Handler:DWORD
-	PENTER	0
+IRQ_set_vect CPROC Handler:DWORD
 	PushCREGS
-
 	pushf			;avoid interruption
 	cli
 
@@ -2457,12 +2434,11 @@ Proc	IRQ_set_vect	near
 @@exit:
 	popf
 	PopCREGS
-	PLEAVE
 	ret
-	endp
+IRQ_set_vect	endp
 
 ;****************************************************************************
-Proc	IRQ_rest_vect	near
+IRQ_rest_vect Proc	near
 	PushCREGS
 
 	pushf			;avoid interruption
@@ -2510,12 +2486,9 @@ Proc	IRQ_rest_vect	near
 	popf
 	PopCREGS
 	ret
-	endp
+IRQ_rest_vect	endp
 
-Proc	sub_ptr near
-	ARG	Off1:word,Seg1:word,Off2:word,Seg2:word
-	PENTER	0
-
+sub_ptr CPROC Off1:word,Seg1:word,Off2:word,Seg2:word
 	mov	ax,[Seg2]
 	mov	dx,0
     REPT 4
@@ -2536,30 +2509,25 @@ Proc	sub_ptr near
 
 	sub	ax,bx
 	sbb	dx,cx
-
-	PLEAVE
 	ret
-	endp
+sub_ptr	endp
 
-Proc	reportDMAC     near
+ReportDMAC Proc	near
 	REPORTDMA DSP_DMA
-	endp
+ReportDMAC	endp
 
-Proc	program_DMAC	near
-	ARG	Addr:word,Page:word,Len:word
-	PENTER	0
-
+program_DMAC CPROC MyAddr:word,MyPage:word,Len:word
 	pushf			;make sure interrupts are off
 	cli
 
 	mov	ax,[DSP_DMA]
-	or	ax,4h		     ;DMASET: Set bit (mask or request)
+	or_ax_n 4h		     ;DMASET: Set bit (mask or request)
 	out	0ah,al
 
 	mov	bx,[DSP_DMA]
 	mov	dx,80h		    ;DMAPAG: Base address
 	add	dl,[DMAPAG_offset+bx]
-	mov	ax,[Page]
+	mov	ax,[MyPage]
 	out	dx,al
 
 	mov	al,0
@@ -2567,7 +2535,7 @@ Proc	program_DMAC	near
                 
 	mov	dx,[DSP_DMA]
 	shl	dx,1
-	mov	ax,[Addr]
+	mov	ax,[MyAddr]
 	out	dx,al		    ;DMAnADR: Channel n Current Address
 	mov	al,ah
 	out	dx,al
@@ -2584,23 +2552,22 @@ Proc	program_DMAC	near
 	cmp	[BACKF],1	; In DMA backfill mode?
 	jne	@@NOTBF
 ;; Set dma loop mode
-	or	ax,16		; put that puppy in loop back mode!
+	or_ax_n 16		; put that puppy in loop back mode!
 @@NOTBF:
 	or	ax,[DSP_DMA]
 	out	0bh,al		    ;DMAMD: Write Mode Register
 
 	mov	ax,[DSP_DMA]
-	or	ax,0h		     ;DMARST: Reset bit (mask or request)
+	or_ax_n 0h		     ;DMARST: Reset bit (mask or request)
 	out	0ah,al
 
 	popf
-	PLEAVE
 	ret
-	endp
+program_DMAC	endp
 
 
 ;; This is the DMA transfer hardware interrupt.
-PROC	DMA_IRQ far
+DMA_IRQ PROC	far
 	SetSemaphore
 	push	ax
 	push	bx
@@ -2631,7 +2598,7 @@ PROC	DMA_IRQ far
 	mov	ah,al
 	mov	al,bl
 
-	cmp	ax,0ffffh
+	cmp_ax_n 0ffffh
 	jne	@@EOI
 
 	cmp	[BACKF],1
@@ -2661,33 +2628,30 @@ PROC	DMA_IRQ far
 	pop	ax
 
 	ClearSemaphoreIRET
-	endp
+DMA_IRQ	endp
 
 
-Proc	DMA_transfer	near
-	ARG	Addr:DWORD,LenL:WORd,LenH:word
-	PENTER	0
+DMA_transfer CPROC MYAddr:DWORD,LenL:WORd,LenH:word
 	PushCREGS
 
-	les	si,[Addr]
+	les	si,[MYAddr]
 	mov	ax,[LenL]
 	mov	dx,[LenH]
 
-	mov	[WORD DMA_ptr],si
-	mov	[WORD DMA_ptr+2],es
+	mov	[WORD PTR DMA_ptr],si
+	mov	[WORD PTR DMA_ptr+2],es
 	mov	[DMA_len_l],ax
 	mov	[DMA_len_h],dx
 
 	call	xfer_chunk
 
 	PopCREGS
-	PLEAVE
 	ret
-	endp
+DMA_transfer	endp
 
 ;; This procedure transfers the next chunk-o-data on this DMA interrupt.
 ;; Trashes registers (will restore DS though).
-Proc	xfer_chunk	near
+xfer_chunk Proc	near
 	lds	si,[DMA_ptr]
 
 	FAR_TO_HUGE ds,si	;DS:SI = start of data to send
@@ -2703,13 +2667,13 @@ Proc	xfer_chunk	near
 	call	sub_ptr 	; Subtract pointers
 	add	sp,8
 
-	sub	ax,1
+	sub_ax_n 1
 	sbb	dx,0
 	mov	[cs:blk_len],ax 	 ;AX = # of bytes left in page -1
 
 	mov	ax,[cs:DMA_len_l]	 ;set AX:DX = total # of bytes left -1
 	mov	dx,[cs:DMA_len_h]
-	sub	ax,1
+	sub_ax_n 1
 	sbb	dx,0
 	cmp	dx,0		    ;> 64K?
 	ja	@@len_valid	     ;yes, send rest of current page only
@@ -2741,8 +2705,8 @@ Proc	xfer_chunk	near
 	lds	si,[cs:DMA_ptr] 	 ;add len of chunk +1 to DMA pointer
 	ADD_PTR [cs:blk_len],0,ds,si
 	ADD_PTR 1,0,ds,si
-	mov	[WORD cs:DMA_ptr],si
-	mov	[WORD cs:DMA_ptr+2],ds
+	mov	word ptr cs:[DMA_ptr],si
+	mov	word ptr cs:[DMA_ptr+2],ds
 
 	push	cs
 	pop	ds
@@ -2751,7 +2715,7 @@ Proc	xfer_chunk	near
 	mov	dx,[DMA_len_h]
 	sub	ax,[blk_len]
 	sbb	dx,0
-	sub	ax,1
+	sub_ax_n 1
 	sbb	dx,0
 	mov	[DMA_len_h],dx
 	mov	[DMA_len_l],ax
@@ -2762,16 +2726,13 @@ Proc	xfer_chunk	near
 
 @@exit:
 	ret			;return DX:AX = remaining bytes
-	endp
+xfer_chunk	endp
 
 
 ;****************************************************************************
 ;; C callable interface to Adlib Gold card.
-CPROC	InitAdlibGold
-	ARG	IO:WORD
-	PENTER	0
+InitAdlibGold	CPROC IO:WORD
 	PushCREGS
-
 	pushf
 	cli		; Need interrupts cleared during hardware startup.
 
@@ -2784,7 +2745,7 @@ CPROC	InitAdlibGold
 	mov	[IO_ADDR],ax	; Overide devault value.
 @@NOTIO:
 	mov	ax,[IO_ADDR]	; Get IO address.
-	add	ax,2
+	add_ax_n 2
 	mov	[CTRL_ADDR],ax		;set I/O parms for control chip
 	inc	ax
 	mov	[CTRL_DATA],ax
@@ -2812,7 +2773,7 @@ ENDIF
 	call	disable_ctrl
 
 	mov	ax,si
-	and	ax,01110000b	      ;isolate DMA SEL 0 bits
+	and_ax_n 01110000b	      ;isolate DMA SEL 0 bits
 	mov	cx,4
 	shr	ax,cl
 	mov	[DSP_DMA],ax		;record DMA channel in use
@@ -2821,7 +2782,7 @@ ENDIF
 	mov	al,[selected_IRQ+si]
 	mov	[DSP_IRQ],ax		;record IRQ line in use
 
-	call	reset_DSP
+	call	reset_dsp
 
 	mov	ax,[default_pan]
 	mov	[panpot],ax
@@ -2835,11 +2796,10 @@ ENDIF
 @@exit_init:
 	popf
 	PopCREGS
-	PLEAVE
 	ret
-	endp
+InitAdlibGold	endp
 
-Proc	PlaySound	near
+PlaySound Proc	near
 	PushAll
 
 	mov	[PlayingSound],1	; Turn playing sound flag true.
@@ -2848,53 +2808,47 @@ Proc	PlaySound	near
 	push	cx		; Pass length.
 	push	es		; segment
 	push	bx		; address.
-	call	_PlayDigitalAudio
+	call	PlayDigitalAudio
 	add	sp,8		; balance stack.
 
 	PopAll
 	ret
-	endp
+PlaySound	endp
 
-Proc    TranslateSound  near
+TranslateSound Proc    near
 	PushAll 	; Save all registers.
 	push	cx	; Length.
 	push	es
 	push	bx		; Address of sound effects.
-	call	_FormatDigitalAudio
+	call	FormatDigitalAudio
 	add	sp,6	; balance stack.
 	PopAll
 	ret
-	endp
+TranslateSound	endp
 
-CPROC	FormatDigitalAudio
-	ARG	DATA:DWORD,SLEN:WORD
-	PENTER	 0
+FormatDigitalAudio CPROC MYDATA:DWORD,SLEN:WORD
 	PushCREGS
 
-	lds	si,[DATA]
+	lds	si,[MYDATA]
 	mov	cx,[SLEN]
 	shr	cx,1
 	pushf
-@@GO:	xor	[word ds:si],8080h
+@@GO:	xor	word ptr ds:[si],8080h
 	add	si,2
 	dec	cx
 	jnz	@@GO
 	popf
-	jnc	@@NOT
-	xor	[byte ds:si],80h
-@@NOT:
+	jnc	@F
+	xor	byte ptr ds:[si],80h
+@@:
 
 	PopCREGS
-	PLEAVE
 	ret
-	endp
+FormatDigitalAudio	endp
 
 
-CPROC	PlayDigitalAudio
-	ARG	DATA:DWORD,SLEN:WORD,FREQ:WORD
-	PENTER	0
+PlayDigitalAudio CPROC MYDATA:DWORD,SLEN:WORD,FREQ:WORD
 	PushCREGS
-
 	mov	ax,cs
 	mov	ds,ax
 
@@ -2904,7 +2858,7 @@ CPROC	PlayDigitalAudio
 
 
 	push	cs
-	lea	ax,[DMA_IRQ]	; Get address if interrupt processing routine.
+	xlea	ax,DMA_IRQ	; Get address if interrupt processing routine.
 	push	ax
 	call	IRQ_set_vect
 	add	sp,4
@@ -2913,22 +2867,18 @@ CPROC	PlayDigitalAudio
 	xor	ax,ax		; high word of length is zero.
 	push	ax
 	push	[SLEN]		; Low word of sound length.
-	push	[word DATA+2]
-	push	[word DATA]
+	push	[word ptr MYDATA+2]
+	push	[word ptr MYDATA]
 	call	DMA_transfer
 	add	sp,8		; balance stack.
 
 	PopCREGS
-	PLEAVE
 	ret
-	endp
+PlayDigitalAudio	endp
 
 
-CPROC	SetDigitalVolume
-	ARG	VOL:WORD
-	PENTER	0
+SetDigitalVolume CPROC VOL:WORD
 	PushCREGS
-
 	mov	ax,cs
 	mov	ds,ax
 
@@ -2942,16 +2892,12 @@ CPROC	SetDigitalVolume
 
 	popf
 	PopCREGS
-	PLEAVE
 	ret
-	endp
+SetDigitalVolume	endp
 
 
-CPROC	SetDigitalPanPot
-	ARG	PAN:WORD
-	PENTER	0
+SetDigitalPanPot CPROC	PAN:WORD
 	PushCREGS
-
 	mov	ax,cs
 	mov	ds,ax
 
@@ -2965,22 +2911,21 @@ CPROC	SetDigitalPanPot
 
 	popf
 	PopCREGS
-	PLEAVE
 	ret
-	endp
+SetDigitalPanPot endp
 
-CPROC	GetDigitalPanPot
+GetDigitalPanPot CPROC	
 	mov	ax,[cs:panpot]
 	ret
-	endp
+GetDigitalPanPot	endp
 
-CPROC	GetDigitalVolume
+GetDigitalVolume CPROC	
 	mov	ax,[cs:main_volume]
 	ret
-	endp
+GetDigitalVolume endp
 
 
-CPROC	ShutDownAdlibGold
+ShutDownAdlibGold CPROC	
 	PushCREGS
 	pushf
 
@@ -2998,7 +2943,7 @@ CPROC	ShutDownAdlibGold
 	M_set_ctrl_reg 13h,[mask_save]
 	call	disable_ctrl
 
-	call	reset_DSP
+	call	reset_dsp
 
 	mov	[init_OK],0
 
@@ -3006,7 +2951,7 @@ CPROC	ShutDownAdlibGold
 	popf
 	PopCREGS
 	ret
-	endp
+ShutDownAdlibGold endp
 
 ENDIF
 ;;
@@ -3037,7 +2982,7 @@ LanXLT	db	15,15,16,16,16,16,17,17,17,17,18,18,18,18,19,19,19
 	db	151,151,150,150,150,150,149,149,149,149,148,148,148,148,147,147
 	db	147,147,146,146,146,146,145,145,145,145,144,144,144,144,143
 
-Proc	TranslateSound	near
+TranslateSound Proc	near
 	PushAll
 
 	cmp	dx,8000 		; <= 8khz?
@@ -3078,20 +3023,20 @@ Proc	TranslateSound	near
 	pop	ds
 @@MULAW:
 	mov	di,si
-	lea	bx,[LanXLT]
+	xlea	bx,LanXLT
 @@CVT:	lodsb			; Get 8 bit audio sample.
-	xlat	[cs:bx]
+	xlat  	cs:LanXLT
 	stosb			; store mu_law data value.
 	loop	@@CVT
 
 	PopAll
 	ret
-	endp
+TranslateSound	endp
 
-Proc	PlaySound	near
+PlaySound Proc	near
 	mov	si,bx
 	cmp	dx,8000
-	jle	@@OK
+	jle	@F
 	push	dx
 	mov	ax,cx
 	mov	bx,8000
@@ -3099,7 +3044,7 @@ Proc	PlaySound	near
 	pop	bx
 	div	bx
 	mov	cx,ax
-@@OK:	mov	ax,cs
+@@:	mov	ax,cs
 	mov	ds,ax		; DS=CS ES=Segment of audio sample.
 
 	mov	[MY_VCB.VCB_command],(VCB_CMD_SEND+VCB_no_wait)     ; Send!
@@ -3114,12 +3059,12 @@ Proc	PlaySound	near
 
 	push	ds
 	pop	es			;; ES=DS=CS
-	lea	bx,[MY_VCB]		;; VCB address.
+	xlea	bx,MY_VCB		;; VCB address.
 	call	[LANADR.DPTR]		;; Far call to lanvoice interface.
 	ret
-	endp
+PlaySound endp
 
-Proc	SoundDone	far
+SoundDone Proc	far
 	SetSemaphore
 	mov	[cs:PlayingSound],0
 	cmp	[cs:CallBacks],0	; Callbacks enabled?
@@ -3130,16 +3075,16 @@ Proc	SoundDone	far
 	PopAll			; Restore all registers.
 @@GOUT: ClearSemaphoreIRET
 	iret
-	endp
+SoundDone endp
 
-Proc	StopSound	; not currently implemented.
+StopSound Proc		; not currently implemented.
 	ret
-	endp
+StopSound endp
 
 ENDIF
 
 IF	DIG_ECHOII
-Proc	TranslateSound near
+TranslateSound Proc near
 ;; CX ->number of bytes in sound sample.
 ;; ES:BX -> far address of sound sample to be played.
 ;; Registers DX,CX,ES,BX,DS must be saved.
@@ -3150,13 +3095,13 @@ Proc	TranslateSound near
 
 	mov	di,bx		; becomes dest.
 	cld
-@@DOT:	mov	al,[es:di]	; Get full 8 bit unsigned sample.
+@@DOT:	mov	al,es:[di]	; Get full 8 bit unsigned sample.
 	add	al,128
 	or	al,01
 	cmp	al,80h
-	jne	@@OK
+	jne	@F
 	inc	al
-@@OK:	stosb			; Store result
+@@:	stosb			; Store result
 	loop	@@DOT		; Complete the translation process.
 
 	pop	di
@@ -3164,14 +3109,14 @@ Proc	TranslateSound near
 	pop	cx
 	pop	bx
 	ret
-	endp
+TranslateSound	endp
 
 ENDIF
 
 IF	DIG_TANEXTX
 ;; The original logarithmic 8-4 bit translate table.  This table
 ;; was designed to accept signed data as the source however.
-LABEL	TransTable BYTE
+TransTable LABEL BYTE
 	db	   6, 6, 6, 6, 5, 5, 5, 5, 5, 5, 5, 5
 	db	   5, 5, 5, 5, 5, 5, 5, 5, 5, 4, 4, 4
 	db	   4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4
@@ -3195,7 +3140,7 @@ LABEL	TransTable BYTE
 	db	   7, 7, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6
 	db	   6, 6, 6, 6
 
-Proc	TranslateSound near
+TranslateSound Proc near
 ;; CX ->number of bytes in sound sample.
 ;; ES:BX -> far address of sound sample to be played.
 ;; Registers DX,CX,ES,BX,DS must be saved.
@@ -3207,10 +3152,10 @@ Proc	TranslateSound near
 	mov	di,bx		; becomes dest.
 	add	bx,cx
 	dec	bx
-	mov	[byte es:bx],0	     ; Turn volume down to zero when done!
-	lea	bx,[TransTable]
+	mov	byte ptr es:[bx],0	     ; Turn volume down to zero when done!
+	xlea	bx,TransTable
 	cld
-@@DOT:	mov	al,[es:di]	; Get full 8 bit unsigned sample.
+@@DOT:	mov	al,es:[di]	; Get full 8 bit unsigned sample.
 	sub	al,128		; Make it signed 8 bit data.
 	xlat			; Translate against table.
 	or	al,90h		; Or Tandy Volume sound channel.
@@ -3222,9 +3167,9 @@ Proc	TranslateSound near
 	pop	cx
 	pop	bx
 	ret
-	endp
+TranslateSound	endp
 
-Proc	_tinit	near
+_tinit 	Proc near
 	push	bx
 	push	cx
 
@@ -3250,7 +3195,7 @@ Proc	_tinit	near
 	pop	cx
 	pop	bx
         ret
-	endp
+_tinit	endp
 
 
 ENDIF
@@ -3271,7 +3216,7 @@ alxlat		db	63,63,62,54,50,46,44,42,40,38,38,37,36,35,34,33
 		db	2,2,2,2,2,2,2,2,1,1,1,1,1,1,1,1
 		db	1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0
 		db	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-Proc	TranslateSound near
+TranslateSound Proc near
 ;; CX ->number of bytes in sound sample.
 ;; ES:BX -> far address of sound sample to be played.
 ;; Registers DX,CX,ES,BX,DS must be saved.
@@ -3282,8 +3227,8 @@ Proc	TranslateSound near
 
 	mov	di,bx		; becomes dest.
 	cld
-	lea	bx,[alxlat]	; Adlib translate table.
-@@DOT:	mov	al,[es:di]	; Get full 8 bit unsigned sample.
+	xlea	bx,alxlat	; Adlib translate table.
+@@DOT:	mov	al,es:[di]	; Get full 8 bit unsigned sample.
 	xlat
 	stosb			; Store result
 	loop	@@DOT		; Complete the translation process.
@@ -3293,7 +3238,7 @@ Proc	TranslateSound near
 	pop	cx
 	pop	bx
 	ret
-	endp
+TranslateSound	endp
 
 ;;; Adlib board specific equates.
 ADDR_DELAY	equ	10	; 3812 address write delay
@@ -3319,7 +3264,7 @@ LOOP_DIVL	equ	8d7eH
 ; If the voice 0 is used only for sampling, call this routine once;
 ; otherwise call before every time you call 'OutSample()'
 ;
-Proc	PrepareToSampleOut     near
+PrepareToSampleOut Proc	near
 	mov	ax,[AdlibIO]
 	inc	ax
 	mov	[PORTMOD+1],ax		; Adlib port address.
@@ -3396,7 +3341,7 @@ Proc	PrepareToSampleOut     near
 	in	al, dx
 
 	ret
-	endp
+PrepareToSampleOut endp
 
 
 ; Output addr and data to Adlib Board.
@@ -3406,7 +3351,7 @@ Proc	PrepareToSampleOut     near
 ; DX: io port
 ;
 ; lost: AX
-Proc	OutAdlib NEAR
+OutAdlib Proc NEAR
 	push	cx			; Preserve CX register.
 	push	ax			; Preserve AX register.
 	mov	al, ah			; Get high byte to send.
@@ -3427,7 +3372,7 @@ Proc	OutAdlib NEAR
 
 	pop	cx			; Restore caller's CX register.
 	ret
-	endp
+OutAdlib endp
 
 ENDIF
 IF	DIG_IBMSND OR DIG_IBM1BIT OR DIG_IBMBAK
@@ -3435,15 +3380,15 @@ IF	DIG_IBMSND OR DIG_IBM1BIT OR DIG_IBMBAK
 MAXTIME 	equ	58
 FRAMESIZE	equ	2048
 MINDELTA	equ	40
-Proc	TranslateSound
+TranslateSound Proc near	
 	PushAll
 	call	MassageSound	; Massage it to maximumal volume.
 	call	MaximizeAudio	; into TIMER2 interupt value range.
 	PopAll
 	ret
-	endp
+TranslateSound 	endp
 
-Proc	MassageSound	near
+MassageSound Proc near
 	push	ds
 	push	si
 	push	dx		; Save rate.
@@ -3475,18 +3420,18 @@ Proc	MassageSound	near
 	pop	si
 	pop	ds
 	ret
-	endp
+MassageSound endp
 
 
-Proc	MassageFrame	near
+MassageFrame Proc	near
 ;; CX -> number of samples to do loudening on.
 	mov	bx,255	; BL ->minimum encountered, BH maximum encounterd.
 	push	cx
 @@MNMX: lodsb		; Get data sample
-	cmp	al,bl	; below minimum encountered so far?
+	cmp_al_bl	; below minimum encountered so far?
 	jae	@@NMN	; No, skip
 	mov	bl,al	; New minimum.
-@@NMN:	cmp	al,bh	; > maximum found so far?
+@@NMN:	cmp_al_bh	; > maximum found so far?
 	jbe	@@NMX	; no, skip.
 	mov	bh,al	; New maximum data sample.
 @@NMX:	loop	@@MNMX	; Keep looking.
@@ -3513,11 +3458,11 @@ Proc	MassageFrame	near
 	loop	@@MLD
 
 	ret
-	endp
+MassageFrame	endp
 
 IF	DIG_IBM1BIT
 CUTOFF	equ	128
-Proc	MaximizeAudio	near
+MaximizeAudio Proc	near
 ;; CX ->number of bytes in sound sample.
 ;; ES:BX -> far address of sound sample to be played.
 ;; Modify sample brought in.
@@ -3557,45 +3502,41 @@ Proc	MaximizeAudio	near
 	pop	ds
 	pop	es
 	ret
-	endp
+MaximizeAudio	endp
 ELSE
-Proc	MaximizeAudio	near
+MaximizeAudio Proc	near
 ;; CX ->number of bytes in sound sample.
 ;; ES:BX -> far address of sound sample to be played.
 ;; Modify sample brought in.
 	mov	di,bx
-@@MOD:	mov	al,[es:di]	; Get audio sample.
+@@MOD:	mov	al,es:[di]	; Get audio sample.
 	shr	al,1		; Divide it by two.
 	shr	al,1		; Divide it by four.
 @@OK1:	cmp	al,51		; Too big for it's britches?
-	jbe	@@OK		; no->fits just fine.
+	jbe	@F		; no->fits just fine.
 	mov	al,51		; Just use maximum.
-@@OK:	inc	al
+@@:	inc	al
 	stosb			; Store result.
 	loop	@@MOD
 	ret
-	endp
+MaximizeAudio	endp
 ENDIF
 ENDIF
 
 IF	DIG_MASTER
-Proc	PlaySound
+PlaySound Proc	near
 	push	dx	;Frequency.
 	push	cx	;Length of sound sample.
 	push	es	; Segment
 	push	bx	; Offset.
-	call	_asmplay
+	call	asmplay
 	add	sp,8
 	ret
-	endp
+PlaySound endp
 
-Proc	StopSound
+StopSound Proc	
 	ret
-	endp
-
-	MASM
-	JUMPS
-
+StopSound endp
 ; 
 ; The following constants hard wire this code to a specific
 ;  set of jumper settings.  Depending on application, they might
@@ -3617,8 +3558,8 @@ UNSIGNED_DATA equ 1	;; The card uses signed data as it's native
 ;  **                                                           **
 ;  **************************************************************
 ;  Register offsets:
-HOST_STAT_REG_OFFSET		EQU		000000003h
-HOST_DATA_REG_OFFSET		EQU		000000002h
+HOST_STAT_REG_OFFSET	EQU		000000003h
+HOST_DATA_REG_OFFSET	EQU		000000002h
 STAT_REG_OFFSET		EQU		000000000h
 DATA_REG_OFFSET		EQU		000000001h
 ;  Host Control Register bits
@@ -3660,20 +3601,20 @@ HMSG_DMA_PAGE1		EQU		000000091h
 HMSG_DMA_PAGE2		EQU		000000092h
 HMSG_DMA_PAGE3		EQU		000000093h
 ;  Commands to board
-HCMD_OPEN_PCM_CHAN		EQU		00000008ch
-HCMD_START_PCM_PLAY		EQU		00000008dh
-HCMD_DNLOAD_PCM_BLOCK		EQU		00000008eh
-HCMD_CLOSE_PCM_CHAN		EQU		000000090h
+HCMD_OPEN_PCM_CHAN	EQU		00000008ch
+HCMD_START_PCM_PLAY	EQU		00000008dh
+HCMD_DNLOAD_PCM_BLOCK	EQU		00000008eh
+HCMD_CLOSE_PCM_CHAN	EQU		000000090h
 ;  get number of synth voices
 HCMD_GET_NUM_VX		EQU		000000094h
-HCMD_ENTER_RECORD		EQU		000000097h
-HCMD_START_RECORD		EQU		000000098h
+HCMD_ENTER_RECORD	EQU		000000097h
+HCMD_START_RECORD	EQU		000000098h
 ;  Size of the DMA buffers in all formats
-DMA_BUFFER_SIZE_16m		EQU		1000h
-DMA_BUFFER_SIZE_8m		EQU		0800h
-DMA_BUFFER_SIZE_16s		EQU		000002000h
-DMA_BUFFER_SIZE_8s		EQU		1000h
-DMA_BUFFER_SIZE_MAX		EQU		000002000h
+DMA_BUFFER_SIZE_16m	EQU		1000h
+DMA_BUFFER_SIZE_8m	EQU		0800h
+DMA_BUFFER_SIZE_16s	EQU		000002000h
+DMA_BUFFER_SIZE_8s	EQU		1000h
+DMA_BUFFER_SIZE_MAX	EQU		000002000h
 ;  In order to have a delay this is not overly CPU speed 
 ;  * dependent, it is nice to have a register that may safely
 ;  * be read to generate an i/o wait state
@@ -3708,9 +3649,9 @@ WRITE_TRANSFER		EQU		000000004h
 READ_TRANSFER		EQU		000000008h
 ;  Address increment/decrement for selected channel 
 ;  increment addresses 
-ADDRESS_INCREMENT		EQU		000000000h
+ADDRESS_INCREMENT	EQU		000000000h
 ;  decrement addresses 
-ADDRESS_DECREMENT		EQU		000000020h
+ADDRESS_DECREMENT	EQU		000000020h
 ;  DMA service modes for selected channel 
 ;  select demand mode 
 DEMAND_MODE		EQU		000000000h
@@ -3726,7 +3667,7 @@ CASCADE_MODE		EQU		0000000c0h
 ; **************************************************************
 ;  DMA1 single mask register
 ; 						(write only)		 
-DMA1_SGL_MASK_REG		EQU		00000000ah
+DMA1_SGL_MASK_REG	EQU		00000000ah
 ;  DMA1 mode register (write only) 
 DMA1_MODE_REG		EQU		00000000bh
 ;  Read to clear byte pointer
@@ -3811,7 +3752,7 @@ SETUP_ISR macro
     mov ax, es:[si + 2]
     mov word ptr save_vector + 2, ax	;save off vectors
     ;
-    mov ax, offset _irqhandler
+    mov ax, offset IRQHandler
     mov es:[si], ax
     mov ax, cs
     mov es:[si+2], ax			;set up new vector
@@ -3842,7 +3783,7 @@ REMOVE_ISR proc near
     mov al, HCR_VALUE_INTS_OFF
     out dx, al				;;disable card ints
     ret
-remove_isr endp
+REMOVE_ISR endp
 ;   
 ;********************** start moving data ***************
 ;
@@ -3876,17 +3817,16 @@ startmovingdata proc near
     mov bl, 2 				;format command for 8 bit mono
     call commandtocard			;send format
     xor ax, ax
-    call _filldmabuffer			;fill a DMA buffer with data
+    call FillDmaBuffer			;fill a DMA buffer with data
     mov _waitforstart, 1		;set flag for ISR (we will start from isr when
 					;  first buffer done downloading)
-    call _dnloaddmabuffer		;download the first buffer to the card
+    call dnloadDmaBuffer		;download the first buffer to the card
     xor ax, ax
     ret
 startmovingdata endp
 ;
-;*********************** dnloaddmabuffer ******************
-public _dnloaddmabuffer
-_dnloaddmabuffer proc near
+;*********************** dnloadDmaBuffer ******************
+dnloadDmaBuffer proc near
     cmp bufferhasdata, 0
     jne @@hop
 	xor ax, ax
@@ -3897,166 +3837,164 @@ _dnloaddmabuffer proc near
     call commandtocard
     xor ax, ax
     ret
-_dnloaddmabuffer endp
+dnloadDmaBuffer endp
 
 ;********************** fill dma buffer ***********************
-public _filldmabuffer
-_filldmabuffer proc near
-    ;********************** do a block move into the current buffer
-    cld
-    push si
-    push di
-    push ds
+FillDmaBuffer proc near
+    	;********************** do a block move into the current buffer
+    	cld
+    	push si
+    	push di
+    	push ds
 
-    mov ax, count			;;how much data left
-    or ax, ax
-    jne @@hop1				    ;;go up if some left
-    pop ds
+    	mov ax, count			;;how much data left
+    	or ax, ax
+    	jne @@hop1				    ;;go up if some left
+    	pop ds
 
-    jmp send_flag			;;if none left, flag as such and leave
+    	jmp send_flag			;;if none left, flag as such and leave
 @@hop1:
-    ;----------------- now do the block move to DMA buffer --------
+    	;----------------- now do the block move to DMA buffer --------
     
-    mov cx, _dma_buffer_size		;bytes to move
-    les di, ddmaptr			;point es:di to dma buffer
-    lds si, pointer			;point ds:se to data
-    shr cx, 1				;number of words to move
+    	mov cx, _dma_buffer_size		;bytes to move
+    	les di, ddmaptr			;point es:di to dma buffer
+    	lds si, pointer			;point ds:se to data
+    	shr cx, 1				;number of words to move
 if UNSIGNED_DATA
-    push bp
-    mov bp, 8080h			;set up mask for signed unsigned conversion
+    	push bp
+    	mov bp, 8080h			;set up mask for signed unsigned conversion
 signed_loop:
-    lodsw				;get two signed samples
-    xor ax, bp				;convert to unsigned
-    stosw				;save them
-    loop signed_loop			;do all samples
-    jnc @@hop2				    ;was there an odd number?
-    lodsb 
-    xor ax,bp				;do the odd byte
-    stosb
+    	lodsw				;get two signed samples
+    	xor ax, bp				;convert to unsigned
+    	stosw				;save them
+    	loop signed_loop			;do all samples
+    	jnc @@hop2				    ;was there an odd number?
+    	lodsb 
+    	xor ax,bp				;do the odd byte
+    	stosb
 @@hop2:
-    pop bp
+    	pop bp
 else
-    rep movsw
+    	rep movsw
 endif
-    pop ds
-    ;*******
-    mov ax, count
-    cmp ax, _dma_buffer_size		;did we just xfer more bytes that are left in RAM?
-    jae @@hop3				    ;go up if not
-    ;
-    ; zero out the buffer
-    ;
-    les di, ddmaptr			;point es:di to dma buffer
-    add di, count			;point to the first byte to get rid of
-    mov cx, _dma_buffer_size
-    sub cx, count			;find number of bytes till end of buffer
-    xor ax, ax
-    rep stosb				;zero out what is left
-    mov count, ax			;our count is now zero
-    jmp short mov_common
-    ;----------
+    	pop ds
+    	;*******
+    	mov ax, count
+    	cmp ax, _dma_buffer_size		;did we just xfer more bytes that are left in RAM?
+    	jae @@hop3				    ;go up if not
+    	;
+    	; zero out the buffer
+    	;
+    	les di, ddmaptr			;point es:di to dma buffer
+    	add di, count			;point to the first byte to get rid of
+    	mov cx, _dma_buffer_size
+    	sub cx, count			;find number of bytes till end of buffer
+    	xor ax, ax
+    	rep stosb				;zero out what is left
+    	mov count, ax			;our count is now zero
+    	jmp short mov_common
+    	;----------
 @@hop3:
-    mov word ptr pointer, si		;save the next pointer location (64 limit)
+    	mov word ptr pointer, si		;save the next pointer location (64 limit)
 
-    mov ax, count
-    sub ax, _dma_buffer_size
-    mov count, ax	;count down data
+    	mov ax, count
+    	sub ax, _dma_buffer_size
+    	mov count, ax	;count down data
 mov_common:
-    mov al, 1
+    	mov al, 1
 send_flag:
-    mov bufferhasdata, al		;set the flag for more data
-    ;
-    pop di
-    pop si
-    xor ax, ax
-    ret
-_filldmabuffer endp
+    	mov bufferhasdata, al		;set the flag for more data
+    	;
+    	pop di
+    	pop si
+    	xor ax, ax
+    	ret
+FillDmaBuffer endp
 ;
 ;****************************** ISR **************************
 ;
 do_286 equ 0				;make work on all machines
 push_all_regs	macro
-		push	es
-		push	ds
-		if do_286
-		    pusha
-		else
-		    push	dx
-		    push	cx
-		    push	bx
-		    push	si
-		    push	di
-		    push	ax
-		    push	bp
-		endif
-		endm
+	push	es
+	push	ds
+	if do_286
+	    pusha
+	else
+	    push	dx
+	    push	cx
+	    push	bx
+	    push	si
+	    push	di
+	    push	ax
+	    push	bp
+	endif
+	endm
 ;
 pop_all_regs	macro
-		if do_286
-		    popa
-		else
-		    pop	bp
-		    pop	ax
-		    pop	di
-		    pop	si
-		    pop	bx
-		    pop	cx
-		    pop	dx
-		endif
-		pop	ds
-		pop	es
-		endm
+	if do_286
+	    popa
+	else
+	    pop	bp
+	    pop	ax
+	    pop	di
+	    pop	si
+	    pop	bx
+	    pop	cx
+	    pop	dx
+	endif
+	pop	ds
+	pop	es
+	endm
 ;
 ;
-public _IRQHandler 
-_IRQHandler proc far
+IRQHandler proc far
 	SetSemaphore
-    push_all_regs
-    mov ax, cs
-    mov ds, ax
+    	push_all_regs
+    	mov ax, cs
+    	mov ds, ax
 irq_loop:
-    call readhost
-    jc no_host				;;leave if nothing from host
-    cmp al, HMSG_DMA_DONE
-    jne not_dma_done
-    ;
-    call _FillDmaBuffer			;fill the next dma buffer
-    test _waitforstart, not 0		;are we in the startup proc?
-    je irq_loop				;if not, look for more messages
-    xor ax, ax	
-    mov _waitforstart, ax		;clear this flag
-    call _dnloaddmabuffer		;send the second initial buffer
-    mov bl, HCMD_START_PCM_PLAY
-    call commandtocard
-    jmp short irq_loop		;;and look for more messages
+    	call 	readhost
+    	jc 	no_host				;;leave if nothing from host
+    	cmp 	al, HMSG_DMA_DONE
+    	jne 	not_dma_done
+    	;
+    	call 	FillDmaBuffer			;fill the next dma buffer
+    	test 	_waitforstart, not 0		;are we in the startup proc?
+    	je 	irq_loop				;if not, look for more messages
+    	xor 	ax, ax	
+    	mov 	_waitforstart, ax		;clear this flag
+    	call 	dnloadDmaBuffer		;send the second initial buffer
+    	mov 	bl, HCMD_START_PCM_PLAY
+    	call 	commandtocard
+    	jmp 	short irq_loop		;;and look for more messages
     ;-----------
 not_dma_done:
-    cmp al, HMSG_BUF_EMPTY
-    jne not_buf_empty
-    ;
-    call _dnloadDmaBuffer
-    jmp short irq_loop
+    	cmp 	al, HMSG_BUF_EMPTY
+    	jne 	not_buf_empty
+    	;
+    	call 	dnloadDmaBuffer
+    	jmp 	short irq_loop
     ;-----------
 not_buf_empty:
-    cmp al, HMSG_PLAY_STOP
-    jne not_play_stop
-    ;
-    mov bl, HCMD_CLOSE_PCM_CHAN
-    call commandtocard 
-    xor al, al
-    mov cs:PlayingSound,0
-    call remove_isr
-    jmp short irq_loop
+    	cmp 	al, HMSG_PLAY_STOP
+    	jne 	not_play_stop
+    	;
+    	mov 	bl, HCMD_CLOSE_PCM_CHAN
+    	call 	commandtocard 
+    	xor 	al, al
+    	mov 	cs:PlayingSound,0
+    	call 	REMOVE_ISR
+    	jmp 	short irq_loop
     ;--------
 not_play_stop:
-    jmp short irq_loop
+    	jmp 	short irq_loop
     ;--------
 no_host:
-    mov al, 20h
-    out 20h, al
-    pop_all_regs
-    ClearSemaphoreIRET
-_IRQHandler endp
+    	mov 	al, 20h
+    	out 	20h, al
+    	pop_all_regs
+    	ClearSemaphoreIRET
+IRQHandler endp
 ;
 readhost proc near
     mov dx, [card_address]
@@ -4122,13 +4060,6 @@ _dmastart proc near
 _dmastart endp
 ;
 ;*********************** the function **********************
-stack struc
-bpstore dw ?
-xretn dw ?
-arg_ptr dd ?
-arg_count dw ?
-arg_rate dw ?
-stack ends
 ;
 SETUP_DMA_BUFFER macro
     mov _dma_buffer_size, DMA_BUFFER_SIZE_8m	;;if different formats supported
@@ -4158,10 +4089,17 @@ try_again:
     @@hop5:
     endm
 
-
 ;
-public _asmplay
-_asmplay proc near
+Arguments struc
+bpstore   dw ?
+xretn     dw ?
+arg_ptr   dd ?
+arg_count dw ?
+arg_rate  dw ?
+Arguments ends
+
+;asmplay proc near C
+asmplay proc near
     push bp
     mov bp, sp
     push si
@@ -4176,14 +4114,14 @@ _asmplay proc near
     ;
     mov cs:PlayingSound, 1			 ;set flag that we are running
     ;
-    les si, [bp].arg_ptr
+    les si, [bp].Arguments.arg_ptr
     mov word ptr pointer, si
     mov word ptr pointer + 2, es
     ;
-    mov ax, [bp].arg_count
+    mov ax, [bp].Arguments.arg_count
     mov count, ax
     ;
-    mov cx, [bp].arg_rate
+    mov cx, [bp].Arguments.arg_rate
     call startmovingdata
     ;
     cld
@@ -4193,14 +4131,14 @@ _asmplay proc near
     pop si 
     pop bp
     ret
-_asmplay endp
+asmplay endp
 ;
 ;********************** CARD TEST/RESET ROUTINE ***************
 ;
 ;
 ;********* misc macros etc... ****
 ;
-    WAIT_A_BIT macro
+WAIT_A_BIT macro
     push cx
     mov cx, 30000
 bit_loop:
@@ -4330,17 +4268,14 @@ get_out:
     ret
 getmsg endp
 ;
-	ENDIF
+ENDIF
 
-	IDEAL
-	JUMPS
 
 IF	DIG_PAUDIO
 
- IFE	DIG_VBEAI
+IFE	DIG_VBEAI
 
 ;;** FINDPAS
-	MASM
 
 ;   /*\
 ;---|*|----====< Media Vision digital driver >====----
@@ -4502,15 +4437,15 @@ DMAFlagTable		label	word
 
 ;
 ; table of filter settings
-;
+		;
 FilterTable	label	byte
-	db     000000b			; mute - goes to PC speaker
-	db     100100b			; 20hz to  2.9khz
-	db     111001b			; 20hz to  5.9khz
-	db     110001b			; 20hz to  8.9khz
-	db     101001b			; 20hz to 11.9khz
-	db     100010b			; 20hz to 15.9khz
-	db     100001b			; 20hz to 17.8khz
+	db     	000000b			; mute - goes to PC speaker
+	db     	100100b			; 20hz to  2.9khz
+	db     	111001b			; 20hz to  5.9khz
+	db     	110001b			; 20hz to  8.9khz
+	db     	101001b			; 20hz to 11.9khz
+	db     	100010b			; 20hz to 15.9khz
+	db     	100001b			; 20hz to 17.8khz
 ;
 FilterLevel     label   byte
 	dw	0			; mute
@@ -4551,7 +4486,6 @@ _ctv_callback	PROC	near
 
 	pop	bp
 	ret
-
 _ctv_callback	ENDP
 
 
@@ -4575,7 +4509,7 @@ _ctv_card_here	PROC	near
 ;
 ; setup a pointer to our local hardware state table
 ;
-	lea	bx,HardwareShadowTable
+	xlea	bx,HardwareShadowTable
 	mov	wptr [mvhwShadowPointer+0],bx
 	mov	wptr [mvhwShadowPointer+2],ds
 ;
@@ -4661,7 +4595,6 @@ _ctv_card_here	PROC	near
 geve_bad:
 	sub	ax,ax			; return null & void
 	ret
-
 _ctv_card_here  ENDP
 
 ;
@@ -4696,9 +4629,9 @@ _ctv_continue	PROC	near
 
         disable
 
-	mov	al,es:[di._audiofilt]
+	mov	al,es:[di.MVState._audiofilt]
 	or	al,bFIsrate		; enable sample rate and buffer timers
-	mov	es:[di._audiofilt],al
+	mov	es:[di.MVState._audiofilt],al
 	out	dx,al
 
 	enable
@@ -4709,7 +4642,6 @@ ctvcnt_05:
         pop     di
 	pop	es
 	ret
-
 _ctv_continue	ENDP
 
 ;
@@ -4740,12 +4672,11 @@ _ctv_detect	PROC	near
     ;
     @@LOC4:
 	ret
-
 _ctv_detect     ENDP
 
 ;
 ;   /*\
-;---|*|---------------====< _ctv_halt >====---------------
+;---|*|---------------====< ctv_halt >====---------------
 ;---|*|
 ;---|*| Stop I/O & remove ourselves from the system
 ;---|*|
@@ -4758,8 +4689,7 @@ _ctv_detect     ENDP
 ;---|*|     AX = 0 if now paused
 ;---|*|
 ;   \*/
-	public	_ctv_halt
-_ctv_halt	PROC	near
+ctv_halt	CPROC
 ;
 ; make sure we're running
 ;
@@ -4775,12 +4705,11 @@ _ctv_halt	PROC	near
 ;
 ctvhlt_05:
 	ret
-
-_ctv_halt	ENDP
+ctv_halt	ENDP
 
 ;
 ;   /*\
-;---|*|---------------====< _ctv_output >====---------------
+;---|*|---------------====< ctv_output >====---------------
 ;---|*|
 ;---|*| Play a block of Data
 ;---|*|
@@ -4795,11 +4724,7 @@ _ctv_halt	ENDP
 ;---|*|     AX = 0 if now running
 ;---|*|
 ;   \*/
-	public	_ctv_output
-_ctv_output	PROC	near
-	push	bp
-	mov	bp,sp
-;
+ctv_output CPROC DATAL:WORD,DATAH:WORD,SNDLEN:WORD,FREQ:WORD
 ; SB compatiblity means we can only handle one block at a time. Take out
 ; this check if you want to queue up multiple blocks at a time...
 ;
@@ -4808,12 +4733,12 @@ _ctv_output	PROC	near
 ;
 ; calculate the sample rate for this block
 ;
-	mov	ax,wParm4		; get the sample rate
+	mov	ax,FREQ			; get the sample rate
 	sub	dx,dx
 	call	near ptr _calcsamplerate
 	jc	ctvou_bad
 
-        mov     ax,wParm4               ; get the sample rate
+        mov     ax,FREQ               	; get the sample rate
         sub     dx,dx
 	call	dacfilter		; setup the filter for this block
 ;
@@ -4823,11 +4748,11 @@ _ctv_output	PROC	near
 	push	ax
 	push	ax
 	sub	dx,dx
-	mov	ax,wParm3		; length
+	mov	ax,SNDLEN		; length
 	push	dx
 	push	ax
-	push	wptr dParm1+2
-	push	wptr dParm1+0
+	push	DATAH
+	push	DATAL
 	call	DACOutput
 	add	sp,6*2
 	sub	ax,ax
@@ -4837,10 +4762,8 @@ ctvou_bad:
 	mov	ax,1
 ;
 ctvou_exit:
-        pop     bp
 	ret
-
-_ctv_output     ENDP
+ctv_output     ENDP
 
 ;
 ;   /*\
@@ -4875,9 +4798,9 @@ _ctv_pause	PROC	near
 
         disable
 
-        mov     al,es:[di._audiofilt]
+        mov     al,es:[di.MVState._audiofilt]
 	and	al,not bFIsrate 	   ; flush the enable bits
-	mov	es:[di._audiofilt],al
+	mov	es:[di.MVState._audiofilt],al
 	out	dx,al
 
 	enable
@@ -4887,7 +4810,6 @@ ctvpau_05:
         pop     di
 	pop	es
 	ret
-
 _ctv_pause      ENDP
 
 ;
@@ -4908,12 +4830,11 @@ _ctv_pause      ENDP
 _ctv_speaker	PROC	near
         sub     ax,ax
 	ret
-
 _ctv_speaker    ENDP
 
 ;
 ;   /*\
-;---|*|---------------====< _ctv_uninstall >====---------------
+;---|*|---------------====< ctv_uninstall >====---------------
 ;---|*|
 ;---|*| Stop I/O & remove ourselves from the system
 ;---|*|
@@ -4926,16 +4847,14 @@ _ctv_speaker    ENDP
 ;---|*|     AX = 0 if now paused
 ;---|*|
 ;   \*/
-	public	_ctv_uninstall
-_ctv_uninstall	PROC	near
+ctv_uninstall	CPROC
 ;
 ; flush everything.
 ;
 	call	near ptr StopSound
 	call	near ptr _unloadirqvector ; restore the original vector
 	ret
-
-_ctv_uninstall  ENDP
+ctv_uninstall  ENDP
 
 ;
 ;----------------------------=======================---------------------------
@@ -4990,7 +4909,6 @@ dacffnd:
     ;
     @@LOC5:
         ret
-
 dacfilter	endp
 
 ;
@@ -5056,7 +4974,6 @@ daci_full:
 	sub	ax,ax
 	pop	bp
 	ret
-
 DACOutput       endp
 
 ;
@@ -5114,7 +5031,7 @@ _calcsamplerate proc near
 ;
 @@LOC8:
 	div	cx
-	mov	es:[di._samplerate],ax	; save just the low order
+	mov	es:[di.MVState._samplerate],ax	; save just the low order
 	clc
 	jmp	short CaSaRa_exit
 ;
@@ -5125,7 +5042,6 @@ CaSaRa_exit:
         pop     di
 	pop	es
 	ret
-
 _calcsamplerate endp
 
 ;
@@ -5145,7 +5061,6 @@ common_dacadc_setup	proc near
 	mov	DMAListCount,0		; count of entries in the list
 	mov	DMARunning,0		; flush the running flag
 	ret
-
 common_dacadc_setup	endp
 
 ;
@@ -5186,28 +5101,27 @@ KillDMA proc	near
 ;
 ; mask out the DMA to stop it
 ;
-	mov	al,[di._dmach]		; get the adjusted dma channel #
+	mov	al,[di.dmaaddr._dmach]		; get the adjusted dma channel #
         or      al,0100b                ; disable the DMA
         sub     dx,dx                   ; clear out the high byte
-	mov	dl,[di._dmawrsmr]
+	mov	dl,[di.dmaaddr._dmawrsmr]
 	out	dx,al
 ;
 ; remove control on the DRQ line
 ;
         les     di,[mvhwShadowPointer]
 
-        mov     al,es:[di._crosschannel]; get the state
+        mov     al,es:[di.MVState._crosschannel]; get the state
         mov     dx,CROSSCHANNEL
 	and	al,not bCCdrq		; clear the DRQ bit
 	out	dx,al
 
-        mov     es:[di._crosschannel],al; and save the new state
+        mov     es:[di.MVState._crosschannel],al; and save the new state
 	enable
 
 	pop	di
 	pop	es
 	ret
-
 KillDMA endp
 
 ;
@@ -5231,16 +5145,16 @@ LoadDMA proc	near
 ;
 ; kill the dma until all programming is done
 ;
-	mov	al,[si._dmach]		; get the adjusted dma channel #
+	mov	al,[si.dmaaddr._dmach]		; get the adjusted dma channel #
         or      al,0100b                ; causes all DMA to be suspended
-	mov	dl,[si._dmawrsmr]
+	mov	dl,[si.dmaaddr._dmawrsmr]
 	out	dx,al
 ;
 ; program the mode
 ;
-        mov     al,[TheDMAmode]         ; get the app's desired mode
-	or	al,[si._dmach]		; merge the adjusted dma channel #
-	mov	dl,[si._dmawrmode]
+        mov     al,[TheDMAMode]         ; get the app's desired mode
+	or	al,[si.dmaaddr._dmach]		; merge the adjusted dma channel #
+	mov	dl,[si.dmaaddr._dmawrmode]
 	cmp	[BACKF],1		; In backfill mode?
 	jne	@@OKBF
 	or	al,16			; Turn backfill mode ON!!
@@ -5257,7 +5171,7 @@ LoadDMA proc	near
 ;
 ; reset the flip-flop, then output the address, then count
 ;
-	mov	dl,[si._dmaclear]	; dh is still clear...
+	mov	dl,[si.dmaaddr._dmaclear]	; dh is still clear...
         out     dx,al                   ; flush...
 	mov	dl,al			; save the page # for the shift
 
@@ -5291,17 +5205,17 @@ LoadDMA proc	near
 ;
 ; before we enable the DMA, let's make sure the DRQ is controlled, not floating
 ;
-	mov	al,es:[di._crosschannel]; get the state
+	mov	al,es:[di.MVState._crosschannel]; get the state
         mov     dx,CROSSCHANNEL
 	or	al,bCCdrq		; set the DRQ bit to control it
 	out	dx,al
-	mov	es:[di._crosschannel],al; and save the new state
+	mov	es:[di.MVState._crosschannel],al; and save the new state
 ;
 ; re-enable the dma now that all programming is done
 ;
-	mov	al,[si._dmach]		; get the adjusted dma channel #
+	mov	al,[si.dmaaddr._dmach]		; get the adjusted dma channel #
         sub     dx,dx                   ; clear dh
-	mov	dl,[si._dmawrsmr]
+	mov	dl,[si.dmaaddr._dmawrsmr]
 	out	dx,al			; & let'er loose (not moving though...)
 ;
 ; all done, return home...
@@ -5310,7 +5224,6 @@ LoadDMA proc	near
 	pop	di
 	pop	es
 	ret
-
 LoadDMA endp
 
 ;
@@ -5336,7 +5249,7 @@ _loadirqvector	proc near
 	or	bx,ax
 	jnz	@@LOC10
 
-	lea	ax,OurIntVector
+	xlea	ax,OurIntVector
 	mov	dx,cs
 
 	xor	bx,bx
@@ -5379,14 +5292,13 @@ _loadirqvector	proc near
 	in	al,dx			; get the real mask
 	or	al,bICsampbuff		; interrupt on sample buffer count
 	out	dx,al			; send it..
-	mov	es:[bx._intrctlr],al	; save it..
+	mov	es:[bx.MVState._intrctlr],al	; save it..
 
 	enable
 ;
 @@LOC10:
 	pop	es
 	ret
-
 _loadirqvector	endp
 
 ;
@@ -5424,7 +5336,6 @@ restartblockout proc near
 ;
 @@LOC11:
         ret
-
 restartblockout endp
 
 ;
@@ -5457,7 +5368,6 @@ setupoutput	proc near
 ;
 seupot_exit:
 	ret
-
 setupoutput	endp
 
 ;
@@ -5479,11 +5389,11 @@ SetupPCMDMAIO	proc near
 	mov	dx,TMRCTLR
         disable
         out     dx,al
-	mov	es:[di._tmrctlr],al
+	mov	es:[di.MVState._tmrctlr],al
 ;
 ; load it now into timer 0
 ;
-	mov	ax,es:[di._samplerate]	; pre-calculated & saved in prior code
+	mov	ax,es:[di.MVState._samplerate]	; pre-calculated & saved in prior code
 	mov	dx,SAMPLERATE
 	out	dx,al
 	pause
@@ -5497,12 +5407,12 @@ SetupPCMDMAIO	proc near
 	mov	dx,TMRCTLR
 
         out     dx,al
-	mov	es:[di._tmrctlr],al	; local timer control register
+	mov	es:[di.MVState._tmrctlr],al	; local timer control register
 
 	mov	bx,OutDMAIndex		; get the current block's index
 	shl	bx,1
 	mov	ax,DMALengthTable[bx]
-        sub     ax,2                    ; ints happen 2 samples prior
+        sub_ax_n 2                    ; ints happen 2 samples prior
 
         mov     bl,[TheDMAChannel]      ; is this a 16 bit channel?
 	mov	bh,bptr cs:[PlayMode]	; bh holds the 0,1=8 2,3=16
@@ -5532,7 +5442,7 @@ SetupPCMDMAIO	proc near
 	shr	ax,cl
 
 	mov	dx,SAMPLECNT		; get the address
-	mov	es:[di._samplecnt],ax	; save it
+	mov	es:[di.MVState._samplecnt],ax	; save it
         out     dx,al
         pause
 	xchg	ah,al
@@ -5559,21 +5469,21 @@ ENDIF
 	or	al,bCCenapcm + bCCdrq	; enable the PCM state machine
         mov     dx,CROSSCHANNEL
 	mov	ah,0fh			; get a mask to load non PCM bits
-	and	ah,es:[di._crosschannel]; grab all but PCM/DRQ/MONO/DIRECTION
+	and	ah,es:[di.MVState._crosschannel]; grab all but PCM/DRQ/MONO/DIRECTION
 	or	al,ah			; merge the two states
 	xor	al,bCCenapcm		; disable the PCM bit
 	out	dx,al			; send to the hardware
 	xor	al,bCCenapcm		; enable the PCM bit
 	out	dx,al			; send to the hardware
-	mov	es:[di._crosschannel],al; and save the new state
+	mov	es:[di.MVState._crosschannel],al; and save the new state
 ;
 ; Setup the audio filter sample bits
 ;
 	mov	dx,AUDIOFILT
-	mov	al,es:[di._audiofilt]
+	mov	al,es:[di.MVState._audiofilt]
 	or	al,(bFIsrate+bFIsbuff)	   ; enable the timer gates
 	out	dx,al			   ; Fly, baby Fly!!!
-	mov	es:[di._audiofilt],al
+	mov	es:[di.MVState._audiofilt],al
         mov     filterreg,al               ; save a local copy
 
 	enable
@@ -5581,7 +5491,6 @@ ENDIF
 	pop	di
 	pop	es
 	ret
-
 SetupPCMDMAIO	endp
 
 ;
@@ -5600,7 +5509,7 @@ SetupPCMDMAIO	endp
 ;   \*/
 
 SelectDMA	proc	near
-	and	ax,0111b		; save the channels
+	and_ax_n 0111b		; save the channels
         mov     bx,ax                   ; get some of the I/O addreses
 	shl	bx,1			; into DX
 
@@ -5612,18 +5521,18 @@ SelectDMA	proc	near
 	mov	bptr OurDMAPageReg,dh	; ...the page register,
 	mov	bptr OurDMAddress,dl	; ...the address register,
 
-	lea	bx,DMA1AddrTable	; get the DMA channel addresses
+	xlea	bx,DMA1AddrTable	; get the DMA channel addresses
 	cmp	al,4
 	jl	seldma_05
-	lea	bx,DMA2AddrTable	; get the DMA channel addresses
+	xlea	bx,DMA2AddrTable	; get the DMA channel addresses
 	sub	al,4			; make it zero based
     ;
     seldma_05:
-	mov	[bx._dmach],al		; save the adjusted dma channel #
+	mov	[bx.dmaaddr._dmach],al		; save the adjusted dma channel #
 	mov	cl,al			; use it as a shift count
 	mov	ax,1			; calculate a DMA mask
 	shl	al,cl
-	mov	[bx._dmachmask],al	; save the dma channel mask
+	mov	[bx.dmaaddr._dmachmask],al	; save the dma channel mask
 
 	mov	[DMAPointer],bx 	; save the pointer to all DMA addrs
 	sub	ax,ax
@@ -5632,6 +5541,8 @@ SelectDMA	proc	near
 seldma_bad:
 	mov	ax,-1
 	ret
+SelectDMA       endp
+
 ;
 ; dma channels, etc
 ;
@@ -5644,8 +5555,6 @@ dmatable	label	word
 	dw	(CH5PAGEREG SHL 8) + DMA2C5ADDR
 	dw	(CH6PAGEREG SHL 8) + DMA2C6ADDR
 	dw	(CH7PAGEREG SHL 8) + DMA2C7ADDR
-
-SelectDMA       endp
 
 ;
 ;   /*\
@@ -5685,7 +5594,6 @@ SelectIRQ	proc	near
 ;
 seirqbad:
 	ret
-
 SelectIRQ       endp
 
 ;
@@ -5711,18 +5619,18 @@ StopPCM proc	near
 ;
 	mov	dx,AUDIOFILT
 	disable
-	mov	al,es:[di._audiofilt]	; get the state
+	mov	al,es:[di.MVState._audiofilt]	; get the state
 	and	al,not (bFIsrate+bFIsbuff) ; flush the sample timer bits
 	out	dx,al
-	mov	es:[di._audiofilt],al	; save the new state
+	mov	es:[di.MVState._audiofilt],al	; save the new state
 ;
 ; clear the PCM enable bit
 ;
-	mov	al,es:[di._crosschannel]; get the current cross channel
+	mov	al,es:[di.MVState._crosschannel]; get the current cross channel
 	and	al,not bCCenapcm	; clear the PCM enable bit
 	mov	dx,CROSSCHANNEL
 	out	dx,al			; send to the hardware
-	mov	es:[di._crosschannel],al
+	mov	es:[di.MVState._crosschannel],al
 	enable				; drop dead...
 ;
 ; flush the buffer pointers
@@ -5745,7 +5653,6 @@ StopPCM proc	near
 	pop	di
 	pop	es
 	ret
-
 StopPCM endp
 
 ;
@@ -5783,20 +5690,20 @@ _unloadirqvector proc near
 	mov	ds,cx
 
         disable
-	mov    [ds:bx+0],ax
-	mov    [ds:bx+2],es
+	mov     ds:[bx+0],ax
+	mov     ds:[bx+2],es
 	pop	ds
 ;
 ; clear the appropriate Interrupt Control Register bit
 ;
-                mov dx,INTRCTLRST
-                out dx,al
-                jmp $+2
-                in al,dx
-                mov dx,INTRCTLR
-                in al,dx
-                and al,11110111b        ;disable IRQs on sample buffer empty
-                out dx,al
+	mov dx,INTRCTLRST
+	out dx,al
+	jmp $+2
+	in al,dx
+	mov dx,INTRCTLR
+	in al,dx
+	and al,11110111b        ;disable IRQs on sample buffer empty
+	out dx,al
     ;
     ; clear the system interrupt mask if no others are using it...
     ;
@@ -5822,14 +5729,11 @@ _unloadirqvector proc near
 	pop	es
 	popf
 	ret
-
 _unloadirqvector endp
 
-	IDEAL
-Proc	reportDMAC     near
+ReportDMAC Proc	near
 	REPORTDMA TheDMAChannel
-	endp
-	MASM
+ReportDMAC endp
 
 ;
 ;   /*\
@@ -5880,12 +5784,12 @@ processnestedints:
 ; wait for the DMA to TC
 ;
 	mov	bx,[DMAPointer] 	; get the DMA table
-	mov	ah,[bx._dmachmask]
+	mov	ah,[bx.dmaaddr._dmachmask]
 
 	mov	cx,intwaitcount 	; save the wait count
 	shl	cx,1
 	sub	dx,dx
-	mov	dl,[bx._dmardstat]	; get the status register
+	mov	dl,[bx.dmaaddr._dmardstat]	; get the status register
     ;
     @@LOC14:
 	in	al,dx			; get the status
@@ -5929,7 +5833,6 @@ skip_int:
 	pushf
 	call	dword ptr ds:[OldIRQRoutine] ; perform the old interrupt
 	jmp	short exit_int
-
 OurIntVector    endp
 
 ;
@@ -5948,7 +5851,7 @@ continueblockout	proc near
 	or	bx,bx
 	jz	@@LOC15
 
-	call	CheckCallback
+	call	CheckCallBack
 ;;	  cmp	  wptr [CallBackRoutine+2],0	  ; is there a callback routine?
 ;;	  jz	  @@LOC15			  ; no, continue on...
 ;;	  pushf
@@ -5963,7 +5866,6 @@ continueblockout	proc near
         pop     cx
 	pop	bx
         ret
-
 continueblockout	endp
 
 ;
@@ -6069,7 +5971,6 @@ cabl_exit:
 	pop	di			; save these...
 	pop	bp
 	ret
-
 calcblock	endp
 
 ;
@@ -6111,7 +6012,6 @@ queueit proc	near
 @@LOC17:
 	cmp	di,MAXDMATABLELEN
         ret
-
 queueit endp
 
 ;
@@ -6137,46 +6037,43 @@ makelinear      proc    near
 	sbb	bx,bx			; bx = ffff if ax wrapped
 	sub	dx,bx			; increment dx if ax wrapped
 	ret
-
 makelinear	endp
 
 
-	IDEAL
-
-Proc	PlaySound	near
+PlaySound Proc	near
 ;; CX ->number of bytes in sound sample.
 ;; ES:BX -> far address of sound sample to be played.
 ;; DX ->rate to play at.
 	cmp	[cs:PlayMode],PCM_16_STEREO
 	je	@@TWICE
 	cmp	[cs:PlayMode],PCM_8_STEREO
-	jne	@@OK
+	jne	@F
 @@TWICE:
 	shl	dx,1		; Times 2 playback frequency, when in stereo.
-@@OK:	push	dx			; Save sampling rate.
+@@:	push	dx			; Save sampling rate.
 	push	cx			; Number of bytes.
 	push	es			; Segment
 	push	bx			; Offset
 	mov	ax,cs
 	mov	ds,ax			; DS=CS
-	call	_ctv_output		; Send it.
+	call	ctv_output		; Send it.
 	add	sp,8			; Balance stack.
 	ret
-	endp
+PlaySound endp
 
-Proc	StopSound	near
+StopSound Proc	near
 	push	ds
 
 	push	cs
 	pop	ds
-	call	_ctv_halt
+	call	ctv_halt
 
 	pop	ds
 	ret
-	endp
+StopSound endp
 
 
-Proc	DoCallBacks	near
+DoCallBacks Proc near
 	cmp	[cs:CallBacks],0
 	je	@@GOUT
 	PushAll 		; Save all registers
@@ -6184,17 +6081,15 @@ Proc	DoCallBacks	near
 	call	[cs:CallBack]	; far call to application.
 	PopAll			; Restore all registers.
 @@GOUT: ret
-	endp
+DoCallBacks endp
 
 ;;////////////////////////////////// VBEAI interface /////////////////////////
 
  ELSE ; DIG_VBEAI
 
-        MASM
-
 	include vbeai.inc
 
-
+DACDEVICE	equ	WAVDEVICE
 ;   /*\
 ;---|*|----====< Media Vision digital driver >====----
 ;---|*|
@@ -6267,7 +6162,6 @@ _ctv_callback	PROC	near
 
 	pop	bp
 	ret
-
 _ctv_callback	ENDP
 
 ;
@@ -6317,10 +6211,10 @@ crdhr_05:
 	sub	ax,004Fh		; good call?
 	jnz	geve_bad		; no, bail out...
 
-	cmp	cs:[di.gdcclassid],DACDEVICE ; DAC?
+	cmp	cs:[di.GeneralDeviceClass.gdcclassid],DACDEVICE ; DAC?
 	jnz	crdhr_05		; no, go find another one...
 
-	cmp	cs:[di.gdcu.wimemreq],SERVICESLEN-16 ; enough memory?
+	cmp	cs:[di.GeneralDeviceClass.gdcu][WAVEInfo.wimemreq],SERVICESLEN-16 ; enough memory?
 	ja	crdhr_05		; no, go find another one...
 
 	mov	ax,VESAFUNCID
@@ -6343,7 +6237,6 @@ crdhr_05:
 geve_bad:
 	sub	ax,ax			; not found...
 	ret
-
 _ctv_card_here  ENDP
 
 ;
@@ -6372,14 +6265,13 @@ _ctv_continue	PROC	near
 	jz	@CTCN05
 
 	les	di,[ServicesPtr]	; get the services structure
-	call	es:[di.wsResumeIO]
+	call	es:[di.WAVEService.wsResumeIO]
 	inc	ax			; go from ffff to 0 or 0 to 01
 ;
 @CTCN05:
         pop     di
 	pop	es
 	ret
-
 _ctv_continue	ENDP
 
 ;
@@ -6427,10 +6319,10 @@ _ctv_detect	PROC	near
 	mov	es,si
 	mov	si,cx
 
-	mov	wptr es:[si.wsApplPSyncCB+0],offset VBECallback
-	mov	wptr es:[si.wsApplPSyncCB+2],cs
-	mov	wptr es:[si.wsApplRSyncCB+0],offset VBECallback
-	mov	wptr es:[si.wsApplRSyncCB+2],cs
+	mov	wptr es:[si.WAVEService.wsApplPSyncCB+0],offset VBECallback
+	mov	wptr es:[si.WAVEService.wsApplPSyncCB+2],cs
+	mov	wptr es:[si.WAVEService.wsApplRSyncCB+0],offset VBECallback
+	mov	wptr es:[si.WAVEService.wsApplRSyncCB+2],cs
 
 	sub	ax,ax			; return okay
     ;
@@ -6438,12 +6330,11 @@ _ctv_detect	PROC	near
 	pop	si
 	pop	es
 	ret
-
 _ctv_detect     ENDP
 
 ;
 ;   /*\
-;---|*|---------------====< _ctv_halt >====---------------
+;---|*|---------------====< ctv_halt >====---------------
 ;---|*|
 ;---|*| Stop I/O & remove ourselves from the system
 ;---|*|
@@ -6456,30 +6347,23 @@ _ctv_detect     ENDP
 ;---|*|     AX = 0 if now stopped
 ;---|*|
 ;   \*/
-	public	_ctv_halt
-_ctv_halt	PROC	near
-        push    es
-	push	di
-
+ctv_halt	CPROC USES ES DI
 	mov	ax,1			; prepair for failure
 	cmp	wptr [ServicesPtr+2],0	; get the services structure
 	jz	@CTHL05
 
 	les	di,[ServicesPtr]	; get the services structure
-	call	es:[di.wsStopIO]
+	call	es:[di.WAVEService.wsStopIO]
 
 	sub	ax,ax			; it is stopped, no matter what
 ;
 @CTHL05:
-        pop     di
-	pop	es
 	ret
-
-_ctv_halt	ENDP
+ctv_halt	ENDP
 
 ;
 ;   /*\
-;---|*|---------------====< _ctv_output >====---------------
+;---|*|---------------====< ctv_output >====---------------
 ;---|*|
 ;---|*| Play a block of Data
 ;---|*|
@@ -6494,14 +6378,7 @@ _ctv_halt	ENDP
 ;---|*|     AX = 0 if now paused
 ;---|*|
 ;   \*/
-	public	_ctv_output
-_ctv_output	PROC	near
-        push    bp
-	mov	bp,sp
-
-	push	es
-	push	si
-
+ctv_output CPROC USES ES SI DATAL:WORD,DATAH:WORD,SNDLEN:WORD,FREQ:WORD
         mov     ax,1                    ; mono
 	cmp	wptr [ServicesPtr+2],0	; get the services structure
 	jz	@CTOU10
@@ -6512,14 +6389,14 @@ _ctv_output	PROC	near
 ;
         push    ax
 	cwd
-        mov     ax,wParm4               ; get the sample rate
+        mov     ax,FREQ               	; get the sample rate
 	push	dx
         push    ax
 	push	dx			; no compression
 	mov	ax,8			; 8 bit pcm
 	push	ax
 
-	call	es:[si.wsPCMInfo]	; set the sample rate
+	call	es:[si.WAVEService.wsPCMInfo]	; set the sample rate
 ;
 ; see which type of playback we need
 ;
@@ -6528,13 +6405,13 @@ _ctv_output	PROC	near
 ;
 ; start the block
 ;
-	push	wptr dParm1+2		; far *
-	push	wptr dParm1+0
+	push	DATAH			; far *
+	push	DATAL
 	sub	ax,ax
 	push	ax			; length
-	push	wptr wParm3		; length
+	push	SNDLEN			; length
 
-	call	es:[si.wsPlayBlock]	; start the block
+	call	es:[si.WAVEService.wsPlayBlock]	; start the block
 	neg	ax			; FFFF=1, 0=0
 	xor	al,1			; 1=BAD, 0=GOOD
 	jmp	short @CTOU10
@@ -6543,25 +6420,21 @@ _ctv_output	PROC	near
 ;
 ; start the block
 ;
-	push	wptr dParm1+2		; far *
-	push	wptr dParm1+0
+	push	DATAH			; far *
+	push	DATAL
 	sub	ax,ax
 	push	ax			; full length
-	push	wptr wParm3		; full length
+	push	SNDLEN			; full length
 	push	ax			; second length
-	push	wptr wParm3		; second length
+	push	SNDLEN			; second length
 
-	call	es:[si.wsPlayCont]	; start the block
+	call	es:[si.WAVEService.wsPlayCont]	; start the block
 	neg	ax			; FFFF is now 1, 0 is now 0
 	xor	al,1			; 1=BAD, 0=GOOD
 ;
 @CTOU10:
-	pop	si
-	pop	es
-	pop	bp
 	ret
-
-_ctv_output     ENDP
+ctv_output     ENDP
 
 ;
 ;   /*\
@@ -6588,14 +6461,13 @@ _ctv_pause	PROC	near
 	jz	@CTPA05
 
 	les	di,[ServicesPtr]	; get the services structure
-	call	es:[di.wsPauseIO]
+	call	es:[di.WAVEService.wsPauseIO]
 	inc	ax			; go from ffff to 0 or 0 to 01
 ;
 @CTPA05:
         pop     di
 	pop	es
 	ret
-
 _ctv_pause      ENDP
 
 ;
@@ -6616,12 +6488,11 @@ _ctv_pause      ENDP
 _ctv_speaker	PROC	near
         sub     ax,ax
 	ret
-
 _ctv_speaker    ENDP
 
 ;
 ;   /*\
-;---|*|---------------====< _ctv_uninstall >====---------------
+;---|*|---------------====< ctv_uninstall >====---------------
 ;---|*|
 ;---|*| Stop I/O & remove ourselves from the system
 ;---|*|
@@ -6634,8 +6505,7 @@ _ctv_speaker    ENDP
 ;---|*|     AX = 0 if now paused
 ;---|*|
 ;   \*/
-	public	_ctv_uninstall
-_ctv_uninstall	PROC	near
+ctv_uninstall	CPROC
 ;
 ; flush everything.
 ;
@@ -6650,8 +6520,7 @@ _ctv_uninstall	PROC	near
 	sbb	ax,ax			; FFFF if not good, else 0000
 	neg	ax			; 0001 if not good, else 0000
 	ret
-
-_ctv_uninstall  ENDP
+ctv_uninstall  ENDP
 
 ;
 ;----------------------------=======================---------------------------
@@ -6678,23 +6547,22 @@ VBECallback	proc	far
 
 	mov	_voice_status,0 	; the block is now done
 
-;;;;;;;;call	CheckCallback		; we only do single block, not
+;;;;;;;;call	CheckCallBack		; we only do single block, not
 ;					; continuous blocks needing CBs
 @VBECB05:
 	pop	ds			; no registers modified
 	retf	10			; pascal style
-
 VBECallback	endp
 
 ;
 ;   /*\
-;---|*|----====< reportDMAC >====----
+;---|*|----====< ReportDMAC >====----
 ;---|*|
 ;---|*| Report the current position of the DMA controller
 ;---|*|
 ;   \*/
 
-reportDMAC      proc    near
+ReportDMAC      proc    near
 	push	bx
 	push	cx
 	push	dx
@@ -6712,7 +6580,7 @@ reportDMAC      proc    near
 	push	ax			; don't care about the 2nd parm
         push    ax
 
-	call	es:[bx.wsDeviceCheck]
+	call	es:[bx.WAVEService.wsDeviceCheck]
 ;
 @REMD05:
 	pop	es
@@ -6720,46 +6588,44 @@ reportDMAC      proc    near
 	pop	cx
 	pop	bx
 	ret
- 
-reportDMAC	endp
+ReportDMAC	endp
 
 
 ;;////////////////////////// IDEAL stuff... //////////////////////////////////
 
-        IDEAL
 
-Proc	PlaySound	near
+PlaySound Proc	near
 ;; CX ->number of bytes in sound sample.
 ;; ES:BX -> far address of sound sample to be played.
 ;; DX ->rate to play at.
 	cmp	[cs:PlayMode],PCM_8_STEREO
-	jne	@@OK
+	jne	@F
 	shl	dx,1		; Times 2 playback frequency, when in stereo.
-@@OK:
+@@:
 	push	dx			; Save sampling rate.
 	push	cx			; Number of bytes.
 	push	es			; Segment
 	push	bx			; Offset
 	mov	ax,cs
 	mov	ds,ax			; DS=CS
-	call	_ctv_output		; Send it.
+	call	ctv_output		; Send it.
 	add	sp,8			; Balance stack.
 	ret
-	endp
+PlaySound endp
 
-Proc	StopSound	near
+StopSound Proc	near
 	push	ds
 
 	push	cs
 	pop	ds
-	call	_ctv_halt
+	call	ctv_halt
 
 	pop	ds
 	ret
-	endp
+StopSound endp
 
 
-Proc	DoCallBacks	near
+DoCallBacks Proc	near
 	cmp	[cs:CallBacks],0
 	je	@@GOUT
 	PushAll 		; Save all registers
@@ -6767,7 +6633,7 @@ Proc	DoCallBacks	near
 	call	[cs:CallBack]	; far call to application.
 	PopAll			; Restore all registers.
 @@GOUT: ret
-	endp
+DoCallBacks	endp
 
 
  ENDIF ; DIG_VBEAI
@@ -6776,18 +6642,6 @@ ENDIF  ; DIG_PAUDIO
 
 IF	DIG_SBLASTER
 ;** FINDSBLASTER
-SMALL_MODEL     equ     1
-
-Macro	CPROC	name		; Macro to establish a C callable procedure.
-	public	_&name
-IF	SMALL_MODEL
-Proc	_&name	near
-ELSE
-Proc	_&name	far
-ENDIF
-	endm
-
-
 
 ORG_INT_ADDX    dd      ?       ; Original IRQ address.
 INT2	DD	?	; Holds address of original interrupt vectors.
@@ -6859,7 +6713,7 @@ PortPossibilities	dw	220h,210h,230h,240h,250h,260h
 ;;	On entry: Nothing.
 ;;	   exit:  Carry clear, sound blaster found.
 ;;		  Carry set, sound blaster NOT-FOUND.
-CProc	InitBlaster
+InitBlaster CPROC	
 	PushCREGS
 
 	mov	ax,cs
@@ -6889,13 +6743,13 @@ CProc	InitBlaster
 @@ERR:
 	PopCREGS
 	ret
-	endp
+InitBlaster	endp
 
 
 ;; On entry: _io_addx = to the address to search at.
 ;;    exit: zero condition -> sound blaster found, here.
 ;;	    non-zero condition, sound blaster not found.
-Proc	DetectBlaster  near
+DetectBlaster Proc	near
 	call   reset_dsp		; Reset the DSP
 	jnz    @@id90			;
 	call   verify_io_chk
@@ -6908,62 +6762,62 @@ Proc	DetectBlaster  near
 	sub    ax,ax
 @@id90:
 	ret
-	endp
+DetectBlaster endp
 
 ;; Verify this IO address.
-Proc    verify_io_chk   near
-       mov    bx,2
-       mov    al,DSP_ID_CMD
-       mov    dx,[_io_addx]
-       add    dx,0ch
-       call   write_dsp_time
-       jc     @@vio90
+verify_io_chk Proc   near
+       	mov    bx,2
+       	mov    al,DSP_ID_CMD
+       	mov    dx,[_io_addx]
+       	add    dx,0ch
+       	call   write_dsp_time
+       	jc     @@vio90
 
-       mov    al,0aah
-       call   write_dsp_time
-       jc     @@vio90
+       	mov    al,0aah
+       	call   write_dsp_time
+       	jc     @@vio90
 
-       call   read_dsp_time
-       jc     @@vio90
+       	call   read_dsp_time
+       	jc     @@vio90
 
-       cmp    al,055h
-       jne    @@vio90
+       	cmp    al,055h
+       	jne    @@vio90
 
-       sub    bx,bx
+       	sub    bx,bx
 
 @@vio90:
-       mov    ax,bx
-       or     ax,ax
-       ret
-       endp
+       	mov    ax,bx
+       	or     ax,ax
+       	ret
+verify_io_chk endp
 
 AUTOALLOWED    dw      0
 
-Proc	chk_dsp_version 	near
-       mov    al,DSP_VER_CMD
-       mov    dx,[_io_addx]
-       add    dl,0ch
-       call   write_dsp
-       call   read_dsp
-       mov    ah,al
-       call   read_dsp
-       mov    bx,1
+chk_dsp_version Proc	near
+       	mov    al,DSP_VER_CMD
+       	mov    dx,[_io_addx]
+       	add    dl,0ch
+       	call   write_dsp
+       	call   read_dsp
+       	mov    ah,al
+       	call   read_dsp
+       	mov    bx,1
 IF	SBCLONE OR STFX
 	jmp short @@NOAUTO	; Never allow auto-init dma on clone cards.
 ENDIF
-       cmp	ax,200h 	; If not version 2.0 and above then we
+       	cmp	ax,200h 	; If not version 2.0 and above then we
 				; don't support auto-init DMA!
-       jb	@@NOAUTO
-       mov      [AUTOALLOWED],1 ; Set auto-init dma flag allowed to true.
+      	jb	@@NOAUTO
+      	mov      [AUTOALLOWED],1 ; Set auto-init dma flag allowed to true.
 @@NOAUTO:
-       cmp    ax,101h
-       jb     @@cdv90
-       sub    bx,bx
+       	cmp    ax,101h
+       	jb     @@cdv90
+       	sub    bx,bx
 @@cdv90:
-       mov    ax,bx
-       or     ax,ax
-       ret
-       endp
+       	mov    ax,bx
+       	or     ax,ax
+       	ret
+chk_dsp_version  endp
 
 ;;
 
@@ -6971,7 +6825,7 @@ ENDIF
 ; write_dsp writes al to the Sound Blaster after waiting for last command
 ; to complete
 ;------------------------------------------------------------------------; 
-Proc	write_dsp	near
+write_dsp Proc	near
 	push	cx		; stuff with CX is new timeout code for v2.0
 	mov	cx,-1
 	mov	ah,al
@@ -6986,9 +6840,9 @@ Proc	write_dsp	near
 	out	dx,al		; Send it
 	pop	cx		; Restore caller's CX register.
 	ret
-	endp
+write_dsp	endp
 
-Proc	write_dsp_time	near
+write_dsp_time Proc	near
 	push	cx		; Save caller's CX register.
 
 	mov	cx,WAIT_TIME	; Application wait time (dangerous for very fast machines?)
@@ -7008,125 +6862,124 @@ Proc	write_dsp_time	near
 @@WDT90:
 	pop	cx		; Restore caller's CX register.
 	ret
-	endp
+write_dsp_time	endp
 
 
 
-Proc	READ_DSP_TIME	near
-       PUSH   CX
-       PUSH   DX
+read_dsp_time Proc	near
+       	PUSH   CX
+       	PUSH   DX
 
-       MOV    DX,[_io_addx]
-       ADD    DL,0EH
+       	MOV    DX,[_io_addx]
+       	ADD    DL,0EH
 
-       MOV    CX,WAIT_TIME
+       	MOV    CX,WAIT_TIME
 
 @@RDT10:
-       IN     AL,DX
-       OR     AL,AL
-       JS     @@RDT20
+       	IN     AL,DX
+       	OR     AL,AL
+       	JS     @@RDT20
 
-       LOOP   @@RDT10
-       STC
-       JMP    SHORT @@RDT90
+       	LOOP   @@RDT10
+       	STC
+       	JMP    SHORT @@RDT90
 
 @@RDT20:
-       SUB    DL,4
-       IN     AL,DX
-       CLC
+       	SUB    DL,4
+       	IN     AL,DX
+       	CLC
 
 @@RDT90:
-       POP    DX
-       POP    CX
-       RET
-	endp
+       	POP    DX
+       	POP    CX
+       	RET
+read_dsp_time	endp
 
 
-Proc	READ_DSP	near
-       PUSH   DX
-       MOV    DX,[_io_addx]
-       ADD    DL,0EH
-       SUB    AL,AL
+read_dsp Proc	near
+       	PUSH   DX
+       	MOV    DX,[_io_addx]
+       	ADD    DL,0EH
+       	SUB    AL,AL
 
 @@RD10:
-       IN     AL,DX
-       OR     AL,AL
-       JNS    @@RD10
+       	IN     AL,DX
+       	OR     AL,AL
+       	JNS    @@RD10
 
-       SUB    DL,4
-       IN     AL,DX
+       	SUB    DL,4
+       	IN     AL,DX
 
-       POP    DX
-       RET
-	endp
+       	POP    DX
+       	RET
+read_dsp endp
 
 WCOUNT	dw	?
 
 
 
-Proc	RESET_DSP	near
-       MOV    DX,[_io_addx]
-       ADD    DL,6
+reset_dsp Proc	near
+       	MOV    DX,[_io_addx]
+       	ADD    DL,6
 
-
-       mov al,1 	       ;JCM (USE THIS INSTEAD)
-       out dx,al	       ;JCM
+       	mov al,1 	       ;JCM (USE THIS INSTEAD)
+       	out dx,al	       ;JCM
                                         ;JCM
-       mov cx,20	       ;JCM
+       	mov cx,20	       ;JCM
 @@wait:
 	in	al,dx		     ;JCM  ;wait > 3 uS
 	loop	@@wait		   ;JCM
-                                        ;JCM
+ 	                                       ;JCM
 	mov	al,0		    ;JCM  ;drop reset
 	out	dx,al		    ;JCM
 
-       MOV    CL,20H
+       	MOV    CL,20H
 
 @@RDSP10:
-       CALL   READ_DSP_TIME
-       CMP    AL,0AAH
-       JE     @@RDSP20
-       DEC    CL
-       JNZ    @@RDSP10
-       MOV    AX,2
-       JMP    SHORT @@RDSP90
+       	CALL   read_dsp_time
+       	CMP    AL,0AAH
+       	JE     @@RDSP20
+       	DEC    CL
+       	JNZ    @@RDSP10
+       	MOV    AX,2
+       	JMP    SHORT @@RDSP90
 @@RDSP20:
-       SUB    AX,AX
+       	SUB    AX,AX
 @@RDSP90:
-       OR     AX,AX
-       RET
-       endp
+       	OR     AX,AX
+       	RET
+reset_dsp       endp
 
 BAILOUT dw	1000
 
-Proc   PAUSE_DSP_DMA   near
-       PUSHF
-       push	ds
-       push	cs
-       pop	ds		; make certain DS=CS
+PAUSE_DSP_DMA Proc near
+        PUSHF
+        push	ds
+        push	cs
+        pop	ds		; make certain DS=CS
 
-       MOV    AH,DSP_PAUSE_DMA_CMD
-       lea    BX,[_voice_status]
-       SUB    CX,CX
-       MOV    DX,[_io_addx]
-       ADD    DL,0CH
+        MOV    	AH,DSP_PAUSE_DMA_CMD
+        xlea    BX,_voice_status
+        SUB    	CX,CX
+        MOV    	DX,[_io_addx]
+        ADD    	DL,0CH
 
-       mov	[BAILOUT],1000
+        mov	[BAILOUT],1000
 @@PDD10:
-       STI		; Enable interupts.
-       CMP    CX,[BX]	; Voice status false?
-       JE     @@PDD90	; yes, skip.
+        STI		; Enable interupts.
+        CMP    CX,[BX]	; Voice status false?
+        JE     @@PDD90	; yes, skip.
 
-       CLI		; Turn off hardware interrupts.
-       dec	[BAILOUT]
-       jnz	@@OK
-       mov	[_voice_status],0
-       call	reset_dsp
-       jmp     @@PDD90
-@@OK:
-       IN     AL,DX	; Read IO address.
-       OR     AL,AL	; Test status.
-       JNS    @@PDD10	; if not busy continue.
+        CLI		; Turn off hardware interrupts.
+        dec	[BAILOUT]
+        jnz	@F
+        mov	[_voice_status],0
+        call	reset_dsp
+        jmp     @@PDD90
+@@:
+        IN     AL,DX	; Read IO address.
+        OR     AL,AL	; Test status.
+        JNS    @@PDD10	; if not busy continue.
 
 ;; Wait until busy edge, then fall into wait until free, while hardware
 ;; interrupts are still disabled, send the pause command.
@@ -7135,18 +6988,18 @@ Proc   PAUSE_DSP_DMA   near
 	dec	cx
 	jz	@@GIVEUP
 	jmp	$+2	; Pause.
-       IN     AL,DX	; Read it.
-       OR     AL,AL
-       JS     @@PDD20
+       	IN     AL,DX	; Read it.
+       	OR     AL,AL
+       	JS     @@PDD20
 @@GIVEUP:
-       MOV    AL,AH
-       OUT    DX,AL
+       	MOV    AL,AH
+       	OUT    DX,AL
 
 @@PDD90:
-       pop     ds
-       POPF
-       RET
-       endp
+       	pop     ds
+       	POPF
+       	RET
+PAUSE_DSP_DMA endp
 
 ;--------------------------------------------
 ; entry: DH = dma mode                      :
@@ -7165,74 +7018,74 @@ DMA_PAGE_REG	    EQU    83H
 PAGER	dw	?	; holds dma page
 DMAPAG_offset   db 07h,03h,01h,02h,-1,0bh,09h,0ah
 
-Proc   PROG_DMA        near
-       PUSH	BX		; Save BX register.
-       mov	[cs:PAGER],dx	; Save PAGE and MODE passed.
-       MOV	BX,AX		; put transfer address in BX
+PROG_DMA Proc   near
+       	PUSH	BX		; Save BX register.
+       	mov	[cs:PAGER],dx	; Save PAGE and MODE passed.
+       	MOV	BX,AX		; put transfer address in BX
 
-			 mov	al,[byte cs:DSP_DMA] ; Get dma channel.
-       or	al,4h		; or mask bit on.
-       OUT	DMA_MASK_REG,AL ; mask it.
+	mov	al,[byte ptr cs:DSP_DMA] ; Get dma channel.
+       	or	al,4h		; or mask bit on.
+       	OUT	DMA_MASK_REG,AL ; mask it.
 
 ;       SUB      AL,AL          ; SES - not neccessary (any write works)
-       OUT    DMA_FF_REG,AL	; reset the flip/flop
+       	OUT    DMA_FF_REG,AL	; reset the flip/flop
 
 
-			 mov	dx,[cs:DSP_DMA]
-       shl	dx,1		; address register.
+	mov	dx,[cs:DSP_DMA]
+       	shl	dx,1		; address register.
 
-       MOV    AL,BL
-       OUT    dx,AL		; send low byte of addresss.
+       	MOV    AL,BL
+       	OUT    dx,AL		; send low byte of addresss.
 
-       MOV    AL,BH
-       OUT    dx,AL		; send high byte of address.
+       	MOV    AL,BH
+       	OUT    dx,AL		; send high byte of address.
 
-			 mov	dx,[cs:DSP_DMA]
-       shl	dx,1
-       add	dx,1
-       MOV	AL,CL
-       OUT	dx,AL		; send low byte of length.
+	mov	dx,[cs:DSP_DMA]
+       	shl	dx,1
+       	add	dx,1
+       	MOV	AL,CL
+       	OUT	dx,AL		; send low byte of length.
 
-       MOV	AL,CH
-       OUT	dx,AL		; send high byte of length.
+       	MOV	AL,CH
+       	OUT	dx,AL		; send high byte of length.
 
 
 	mov	bx,[cs:DSP_DMA]
 	mov	dx,80h		    ;DMAPAG: Base address
 	add	dl,[cs:DMAPAG_offset+bx]
-       MOV	AL,[byte cs:PAGER] ; get page.
-       OUT	dx,AL
+       	MOV	AL,[byte ptr cs:PAGER] ; get page.
+       	OUT	dx,AL
 
-       MOV    AL,[byte cs:PAGER+1]	      ; get mode passed.
-       cmp    [cs:BACKF],1    ; test to see if in backfill mode.
-       jne    @@NOTBF
-       or     al,16		; Turn DMA back fill mode on.
+       	MOV    AL,[byte ptr cs:PAGER+1]	      ; get mode passed.
+       	cmp    [cs:BACKF],1    ; test to see if in backfill mode.
+       	jne    @@NOTBF
+       	or     al,16		; Turn DMA back fill mode on.
 @@NOTBF:
 	or	ax,[cs:DSP_DMA] ; Or bit on for dma channel being set.
-       OUT    DMA_MODE_REG,AL
+       	OUT    DMA_MODE_REG,AL
 
-			 MOV    AX,[cs:DSP_DMA]	; Get DMA channel to reset.
-       OUT    DMA_MASK_REG,AL
+	MOV    AX,[cs:DSP_DMA]	; Get DMA channel to reset.
+       	OUT    DMA_MASK_REG,AL
 
-       mov	dx,[cs:PAGER]
-       POP    BX
-       RET
-       endp
+       	mov	dx,[cs:PAGER]
+       	POP    BX
+       	RET
+PROG_DMA   endp
 
 
 
-Proc	CALC_20BIT_ADDX 	near
-       PUSH   CX
-       MOV    CL,4
-       ROL    DX,CL
-       MOV    CX,DX
-       AND    DX,0FH
-       AND    CX,0FFF0H
-       ADD    AX,CX
-       ADC    DX,0
-       POP    CX
-       RET
-       endp
+CALC_20BIT_ADDX Proc	near
+       	PUSH   CX
+       	MOV    CL,4
+       	ROL    DX,CL
+       	MOV    CX,DX
+       	AND    DX,0FH
+       	AND    CX,0FFF0H
+       	ADD    AX,CX
+       	ADC    DX,0
+       	POP    CX
+       	RET
+CALC_20BIT_ADDX  endp
 
 
 PIC0_val	db	?
@@ -7243,120 +7096,120 @@ PIC1_val	db	?
 ;        BX = offset of store buffer             :
 ;-------------------------------------------------
 IntInstalled	   dw	   0	   ; True when interrupt installed.
-Proc	SETUP_INTERRUPT near
-       PUSH   BX
-       PUSH   CX
-       PUSH   DX
+SETUP_INTERRUPT Proc near
+       	PUSH   BX
+       	PUSH   CX
+       	PUSH   DX
 
-       cmp	[cs:IntInstalled],1	   ; Interrupt allready installed?
-       je	@@GOUT
+       	cmp	[cs:IntInstalled],1	   ; Interrupt allready installed?
+       	je	@@GOUT
 
-       CLI
+       	CLI
 	xor	ah,ah		; Zero high byte.
-       MOV    CL,AL                    ; preserve interrupt number for use
-       cmp     al,8
-       jb      @@calc_vect
+       	MOV    CL,AL                    ; preserve interrupt number for use
+       	cmp     al,8
+       	jb      @@calc_vect
 	add	al,60h	       ; index slcae PIC vectors if IRQ > 7
 @@calc_vect:
-       ADD    AL,8                     ; calculate interrupt vector addx
-       SHL    Ax,1
-       SHL    Ax,1
-       MOV    DI,AX
+       	ADD    AL,8                     ; calculate interrupt vector addx
+       	SHL    Ax,1
+       	SHL    Ax,1
+       	MOV    DI,AX
 
-       PUSH   ES                       ; setup and preserve interrupt
+       	PUSH   ES                       ; setup and preserve interrupt
 
-       SUB    AX,AX
-       MOV    ES,AX
-       MOV    AX,[ES:DI]
-       MOV    [cs:BX],AX               ;JCM
-       MOV    [ES:DI],DX
+       	SUB    AX,AX
+       	MOV    ES,AX
+       	MOV    AX,ES:[DI]
+       	MOV    cs:[BX],AX               ;JCM
+       	MOV    ES:[DI],DX
 
-       MOV    AX,[ES:DI+2]
-       MOV    [cs:BX+2],AX             ;JCM
-       MOV    [ES:DI+2],CS
+       	MOV    AX,ES:[DI+2]
+       	MOV    cs:[BX+2],AX             ;JCM
+       	MOV    ES:[DI+2],CS
 
-       POP    ES
+       	POP    ES
 
-       mov     bx,1
-       shl     bx,cl
-       not     bx
-       in      al,0a1h
-       mov     [PIC1_val],al
-       and     al,bh
-       out     0a1h,al
-       in      al,21h
-       mov     [PIC0_val],al
-       and     al,bl
-       out     21h,al
-       mov	[cs:IntInstalled],1
+       	mov     bx,1
+       	shl     bx,cl
+       	not     bx
+       	in      al,0a1h
+       	mov     [PIC1_val],al
+       	and     al,bh
+       	out     0a1h,al
+       	in      al,21h
+       	mov     [PIC0_val],al
+       	and     al,bl
+       	out     21h,al
+       	mov	[cs:IntInstalled],1
 @@GOUT:
-       STI
-       POP    DX
-       POP    CX
-       POP    BX
-       RET
-       endp
+       	STI
+       	POP    DX
+       	POP    CX
+       	POP    BX
+       	RET
+SETUP_INTERRUPT	endp
 
 
 ;-------------------------------------------------
 ; entry: AL = INTERRUPT NUM                      |
 ;        BX = offset to stored addx              |
 ;-------------------------------------------------
-Proc   RESTORE_INTERRUPT       near
-       CLI
-       cmp     [cs:IntInstalled],1	  ; Installed?
-       jne     @@GOUT
-       MOV    CL,AL
-       push bx		       ;JCM
-       mov     bx,1
-       shl     bx,cl
-       in      al,0a1h
-       or      al,bh
-       and     al,[PIC1_val]	     ;don't kill any interrupts that were
-       out     0a1h,al		   ;initially active
-       in      al,21h
-       or      al,bl
-       and     al,[PIC0_val]
-       out     21h,al
-       pop bx		       ;JCM
+RESTORE_INTERRUPT Proc near
+       	CLI
+       	cmp     [cs:IntInstalled],1	  ; Installed?
+       	jne     @@GOUT
+       	MOV    	CL,AL
+       	push 	bx		       ;JCM
+       	mov     bx,1
+       	shl     bx,cl
+       	in      al,0a1h
+       	or      al,bh
+       	and     al,[PIC1_val]	     ;don't kill any interrupts that were
+      	out     0a1h,al		   ;initially active
+        in      al,21h
+       	or      al,bl
+       	and     al,[PIC0_val]
+       	out     21h,al
+       	pop 	bx		       ;JCM
 
-       mov     al,cl	       ; Get back interrupt number.
-       xor     ah,ah
+       	mov     al,cl	       ; Get back interrupt number.
+       	xor     ah,ah
 
-       cmp	al,8
-       jb	@@calc_vect
-       add	al,60h		; index slave PIC if IRQ > 7
+       	cmp	al,8
+       	jb	@@calc_vect
+       	add	al,60h		; index slave PIC if IRQ > 7
 @@calc_vect:
-       ADD    AL,8                      ; calculate interrupt vector addx
-       SHL    Ax,1
-       SHL    Ax,1
-       MOV    DI,AX
+       	ADD    	AL,8                      ; calculate interrupt vector addx
+       	SHL   	Ax,1
+       	SHL    	Ax,1
+       	MOV    	DI,AX
 
-       PUSH   ES                       ; restore interrupt vector
-       SUB    AX,AX
-       MOV    ES,AX
-       MOV    AX,[cs:BX]               ;JCM
-       MOV    [ES:DI],AX
+       	PUSH   	ES                       ; restore interrupt vector
+       	SUB    	AX,AX
+       	MOV    	ES,AX
+       	MOV    	AX,cs:[BX]               ;JCM
+       	MOV    	ES:[DI],AX
 
-       MOV    AX,[cs:BX+2]             ;JCM
-       MOV    [ES:DI+2],AX
-       POP    ES
-       mov	[cs:IntInstalled],0	   ; No longer installed.
+       	MOV    	AX,cs:[BX+2]             ;JCM
+       	MOV   	ES:[DI+2],AX
+       	POP 	ES
+       	mov	[cs:IntInstalled],0	   ; No longer installed.
 @@GOUT:
-       STI
-       RET
-       endp
+       	STI
+       	RET
+RESTORE_INTERRUPT endp
 
 
 ;; SoundBlaster report DMAC routine.
-Proc	ReportDMAC
+ReportDMAC Proc	
 	REPORTDMA DSP_DMA
-	endp
+ReportDMAC endp
 
 MPU401INT   EQU   24h                   ; SES - 3rd bit indicates MPU-401 Int.
 INTIDREG    EQU   82h                   ; SES - Interrupt ID register
 
-Proc	DMA_OUT_INTR	far
+DMA_OUT_INTR Proc	far
 	SetSemaphore
 	push	ax
 	push	dx
@@ -7398,7 +7251,7 @@ Proc	DMA_OUT_INTR	far
 ;        jb     @@VO_INT90
 ;-----------------------------------------------------------------------------
 
-        mov    al,[byte cs:_intr_num]       ; SES - Get interrupt number
+        mov    al,[byte ptr cs:_intr_num]       ; SES - Get interrupt number
         cmp    al, 7                        ; SES - is it IRQ 7 ?
         jne    @@INT_OK                     ; SES - no, then skip test of PIC
 
@@ -7425,21 +7278,21 @@ Proc	DMA_OUT_INTR	far
 	JMP    SHORT @@VO_INT90
 
 @@VO_INT10:
-       CALL   DMA_OUT_TRANSFER
+       	CALL   DMA_OUT_TRANSFER
 
 @@VO_INT90:
-       pop      dx
-       MOV	AL,20H
-       cmp	[cs:_intr_num],7
-       jbe	@@NOT
-       out	0a0h,al 	; clear PIC1 if IRQ >=8
-@@NOT: OUT	20H,AL
-       pop	ax
-       ClearSemaphoreIRET
-       IRET
-       endp
+       	pop      dx
+       	MOV	AL,20H
+       	cmp	[cs:_intr_num],7
+       	jbe	@F
+       	out	0a0h,al 	; clear PIC1 if IRQ >=8
+@@: 	OUT	20H,AL
+       	pop	ax
+       	ClearSemaphoreIRET
+       	IRET
+DMA_OUT_INTR   	endp
 
-Macro	INISR
+INISR	Macro
 	push	es		; Save registers that are used
 	push	ds
 	push	di
@@ -7452,7 +7305,7 @@ Macro	INISR
 	mov	ds,ax		; Establish data addressability.
 	endm
 
-Macro	OUTISR
+OUTISR	Macro	
 	pop	bx
 	pop	cx
 	pop	si
@@ -7462,7 +7315,7 @@ Macro	OUTISR
 	endm
 
 ;; In an ISR, so all registers need to be saved!! (AX,DX, allready saved though.
-Proc	DMA_OUT_TRANSFER	near
+DMA_OUT_TRANSFER Proc	near
 	INISR
 
 	MOV    CX,-1			; get current page end address
@@ -7474,28 +7327,28 @@ Proc	DMA_OUT_TRANSFER	near
 	MOV	CX,[LAST_DMA_OFFSET]	   ; get end addx
 
 @@DOT10:
-       SUB    CX,[DMA_CURRENT_ADDX]      ; calculate current page addx
-       MOV    [DMA_CURRENT_COUNT],CX
-       INC    CX
-       JZ     @@DOT20
+       	SUB    CX,[DMA_CURRENT_ADDX]      ; calculate current page addx
+       	MOV    [DMA_CURRENT_COUNT],CX
+       	INC    CX
+       	JZ     @@DOT20
 
-       SUB    [LEN_L_TO_DMA],CX
-       SBB    [LEN_H_TO_DMA],0
-       JMP    SHORT @@DOT30
+       	SUB    [LEN_L_TO_DMA],CX
+       	SBB    [LEN_H_TO_DMA],0
+       	JMP    SHORT @@DOT30
 
 @@DOT20:
-       DEC    [LEN_H_TO_DMA]
+       	DEC    [LEN_H_TO_DMA]
 
 @@DOT30:
 	MOV    DH,DMA_VOICE_OUT
 	cmp	[cs:RecordMode],1	; In recording mode?
-	jne	@@NOT
+	jne	@F
 	mov	DH,DMA_VOICE_IN
-@@NOT:
-       MOV    DL,[DMA_CURRENT_PAGE]
-       MOV    AX,[DMA_CURRENT_ADDX]
-       MOV    CX,[DMA_CURRENT_COUNT]
-       CALL   PROG_DMA
+@@:
+       	MOV    DL,[DMA_CURRENT_PAGE]
+       	MOV    AX,[DMA_CURRENT_ADDX]
+       	MOV    CX,[DMA_CURRENT_COUNT]
+       	CALL   PROG_DMA
 
 IF	SBPRO
 	mov	dx,[_io_addx]	     ; Base I/O address of sound blaster.
@@ -7512,83 +7365,78 @@ IF	SBPRO
 	out	dx,al		    ;Set stereo/mono mode; filtering = ON
 ENDIF
 
+       	DEC    [PAGE_TO_DMA]
+       	INC    [DMA_CURRENT_PAGE]
+       	MOV    [DMA_CURRENT_ADDX],0
 
-       DEC    [PAGE_TO_DMA]
-       INC    [DMA_CURRENT_PAGE]
-       MOV    [DMA_CURRENT_ADDX],0
+       	MOV    CX,[DMA_CURRENT_COUNT]
 
-       MOV    CX,[DMA_CURRENT_COUNT]
+       	MOV    DX,[_io_addx]
+       	ADD    DL,0CH
 
-       MOV    DX,[_io_addx]
-       ADD    DL,0CH
-
-       MOV    AL,DSP_VO8_CMD
+       	MOV    AL,DSP_VO8_CMD
 	cmp	[RecordMode],1		; In record mode?
 	jne	@@NOTR
 	mov	al,DSP_VI8_CMD	; Record 8 bit PCM!
 	jmp short @@GOCMD	; go command.
 @@NOTR:
 IF	STFX
-       cmp    [PlayMode],PCM_8_MONO
-       je     @@GO
-       mov    al,DSP_STEREO_CMD
+       	cmp    [PlayMode],PCM_8_MONO
+       	je     @@GO
+       	mov    al,DSP_STEREO_CMD
 @@GO:
 ENDIF
 	cmp	[BACKF],1
 	jne	@@GOCMD
         mov     AL,DSP_BLK_SIZE              ; send DSP block size command
-        CALL    WRITE_DSP
+        CALL    write_dsp
 
         MOV    AL,CL                         ; send block size
-        CALL   WRITE_DSP
+        CALL   write_dsp
         MOV    AL,CH
-        CALL   WRITE_DSP
+        CALL   write_dsp
 
         MOV    AL,DSP_AUTO8                  ; send command
-        CALL   WRITE_DSP
+        CALL   write_dsp
         jmp    @@DOT90
 
 @@GOCMD:
-       CALL   WRITE_DSP
+       	CALL   write_dsp
 
-       MOV    AL,CL
-       CALL   WRITE_DSP
+       	MOV    AL,CL
+       	CALL   write_dsp
 
-       MOV    AL,CH
-       CALL   WRITE_DSP
-
+       	MOV    AL,CH
+       	CALL   write_dsp
 
 @@DOT90:
 	OUTISR			; Restore registers for ISR routines.
 	RET
-	ENDP
+DMA_OUT_TRANSFER ENDP
 
 
 
-Proc	END_DMA_TRANSFER	near
-       INISR
-       MOV    AL,5
-       OUT    DMA_MASK_REG,AL
-       MOV    AL,[byte _intr_num]
-       lea    BX,[ORG_INT_ADDX]
-       CALL   RESTORE_INTERRUPT
-       MOV    [_voice_status],0
-       MOV    DX,[_io_addx]
-       ADD    DL,0EH
-       IN     AL,DX
+END_DMA_TRANSFER Proc near
+       	INISR
+       	MOV    AL,5
+       	OUT    DMA_MASK_REG,AL
+       	MOV    AL,[byte ptr _intr_num]
+       	xlea    BX,ORG_INT_ADDX
+       	CALL   	RESTORE_INTERRUPT
+       	MOV    	[_voice_status],0
+       	MOV    	DX,[_io_addx]
+       	ADD    	DL,0EH
+       	IN     	AL,DX
 
 ;; Do Callbacks if ncessary.
-       call    DoCallBacks
+       	call    DoCallBacks
 
-       OUTISR
-       RET
-       endp
+       	OUTISR
+       	RET
+END_DMA_TRANSFER  endp
 
-CPROC	ctv_output
-	ARG	DATAL:WORD,DATAH:WORD,SNDLEN:WORD,FREQ:WORD
-	PENTER	0
+ctv_output CPROC DATAL:WORD,DATAH:WORD,SNDLEN:WORD,FREQ:WORD
 	PushCREGS
-
 	MOV    AX,cs
 	MOV    DS,AX
 	MOV    ES,AX		; ES=DS=CS
@@ -7596,64 +7444,63 @@ CPROC	ctv_output
 @@WAIT: CMP    [_voice_status],0
 	jne    @@WAIT		; Wait until last sound has completed playing.
 @@OV10:
-       MOV    [_voice_status],1
+       	MOV    [_voice_status],1
 
-       MOV    DX,[_io_addx]
-       ADD    DL,0CH
+       	MOV    DX,[_io_addx]
+       	ADD    DL,0CH
 
-       MOV    DX,0FH                   ; calculate sampling rate value for
-       MOV    AX,4240H                 ; DSP
-       MOV    CX,[FREQ] 	; Get playback frequency.
-       DIV    CX
+       	MOV    DX,0FH                   ; calculate sampling rate value for
+       	MOV    AX,4240H                 ; DSP
+       	MOV    CX,[FREQ] 	; Get playback frequency.
+       	DIV    CX
 
-       MOV    CL,AL
-       NEG    CL
+       	MOV    CL,AL
+       	NEG    CL
 
-       MOV    DX,[_io_addx]
-       ADD    DL,0CH
-       MOV    AL,DSP_TIME_CMD
-       CALL   WRITE_DSP
+       	MOV    DX,[_io_addx]
+       	ADD    DL,0CH
+       	MOV    AL,DSP_TIME_CMD
+       	CALL   write_dsp
 
-       MOV    AL,CL
-       CALL   WRITE_DSP
+       	MOV    AL,CL
+       	CALL   write_dsp
 
-       MOV	AL,[byte _intr_num]
-       lea	dx,[DMA_OUT_INTR]
-       lea	BX,[ORG_INT_ADDX]
-       CALL	SETUP_INTERRUPT
+       	MOV	AL,[byte ptr _intr_num]
+       	xlea	dx,DMA_OUT_INTR
+       	xlea	BX,ORG_INT_ADDX
+       	CALL	SETUP_INTERRUPT
 
-       mov	dx,[DATAH]
-       mov	ax,[DATAL]
+       	mov	dx,[DATAH]
+       	mov	ax,[DATAL]
 
-       CALL   CALC_20BIT_ADDX
+       	CALL   CALC_20BIT_ADDX
 
-       MOV    [DMA_CURRENT_PAGE],DL
-       MOV    [DMA_CURRENT_ADDX],AX
+       	MOV    [DMA_CURRENT_PAGE],DL
+       	MOV    [DMA_CURRENT_ADDX],AX
 
-       MOV    CX,[SNDLEN]	; Length of sound.
-       MOV    [LEN_L_TO_DMA],CX
-       MOV    [LEN_H_TO_DMA],0
+       	MOV    CX,[SNDLEN]	; Length of sound.
+       	MOV    [LEN_L_TO_DMA],CX
+       	MOV    [LEN_H_TO_DMA],0
 
-       ADD    AX,[SNDLEN]
-       ADC    DL,0
-       SUB    AX,1
-       SBB    DL,0
+       	ADD    AX,[SNDLEN]
+       	ADC    DL,0
+       	sub_ax_n 1
+       	SBB    DL,0
 
-       MOV    [LAST_DMA_OFFSET],AX
-       SUB    DL,[DMA_CURRENT_PAGE]
-       MOV    [PAGE_TO_DMA],DL
+      	MOV    [LAST_DMA_OFFSET],AX
+       	SUB    DL,[DMA_CURRENT_PAGE]
+       	MOV    [PAGE_TO_DMA],DL
 
-       CALL   DMA_OUT_TRANSFER
+       	CALL   DMA_OUT_TRANSFER
 
-       SUB    AX,AX
+       	SUB    AX,AX
 
 @@OV90:
 	PopCREGS
-	PLEAVE
 	ret
-	endp
+ctv_output endp
 
-CPROC	ctv_halt
+ctv_halt CPROC		
 	PushCREGS
 	MOV    AX,cs
 	MOV    DS,AX
@@ -7671,10 +7518,11 @@ CPROC	ctv_halt
 	mov	dx,[_io_addx]
 	add	dx,0ch
 	mov	al,DSP_AUTO_OFF ; Turn auto-init dma off.
-	call	WRITE_DSP
+	call	write_dsp
 	CALL   END_DMA_TRANSFER
-	call	reset_DSP	;
+	call	reset_dsp	;
 	mov	[SPEAKERSTATE],-1
+	nop			;tasm conmpatibility
 	mov	al,1
 	call	ON_OFF_SPEAKER
 	sti
@@ -7691,53 +7539,51 @@ CPROC	ctv_halt
 @@TVP90:
 	PopCREGS
 	RET
-	endp
+ctv_halt endp
 
 
-CPROC	ctv_uninstall
+ctv_uninstall CPROC	
 	PushCREGS
-       MOV    AX,cs
-       MOV    DS,AX
-       MOV    ES,AX
+       	MOV    AX,cs
+       	MOV    DS,AX
+       	MOV    ES,AX
 
-       CMP    [_voice_status],0
-       JZ     @@UI90
+       	CMP    [_voice_status],0
+       	JZ     @@UI90
 
-       CALL   PAUSE_DSP_DMA
-       CALL   END_DMA_TRANSFER
-
+       	CALL   PAUSE_DSP_DMA
+       	CALL   END_DMA_TRANSFER
 
 @@UI90:
-       SUB    AL,AL
-       CALL   ON_OFF_SPEAKER
+       	SUB    AL,AL
+       	CALL   ON_OFF_SPEAKER
 
+      	MOV    	AL,[byte ptr _intr_num]	; make certain interrupt is restored.
+      	xlea    BX,ORG_INT_ADDX
+      	CALL   	RESTORE_INTERRUPT
 
-      MOV    AL,[byte _intr_num]	; make certain interrupt is restored.
-      lea    BX,[ORG_INT_ADDX]
-      CALL   RESTORE_INTERRUPT
+      	mov     dx,[cs:_io_addx]
+      	add     dx,4
+      	mov     al,83h
+      	out     dx,al
+     	inc     dx
+      	mov     al,0Fh
+      	out     dx,al	      ; disable MIDI interrupt.
 
-      mov     dx,[cs:_io_addx]
-      add     dx,4
-      mov     al,83h
-      out     dx,al
-      inc     dx
-      mov     al,0Fh
-      out     dx,al	      ; disable MIDI interrupt.
+       	SUB    AX,AX
 
-       SUB    AX,AX
+       	PopCREGS
+       	RET
+ctv_uninstall  endp
 
-       PopCREGS
-       RET
-       endp
-
-CPROC	ctv_status
+ctv_status CPROC	
 	mov	ax,[cs:_voice_status]
 	ret
-	endp
+ctv_status endp
 
 SPEAKERSTATE	db	-1
 
-Proc	ON_OFF_SPEAKER	near
+ON_OFF_SPEAKER Proc	near
 	cmp	al,[SPEAKERSTATE]
 	je	@@DONE
 	PushAll
@@ -7754,17 +7600,17 @@ Proc	ON_OFF_SPEAKER	near
 
 @@OOS10:
 	MOV	AL,AH
-	CALL	WRITE_DSP
+	CALL	write_dsp
 
 	PopAll
 @@DONE:
-       SUB	AX,AX			 ; inidcate no error
-       RET
-       endp
+       	SUB	AX,AX			 ; inidcate no error
+       	RET
+ON_OFF_SPEAKER 	endp
 
 
 ;; SoundBlaster PlaySound
-Proc	PlaySound	near
+PlaySound Proc	near
 ;; CX ->number of bytes in sound sample.
 ;; ES:BX -> far address of sound sample to be played.
 ;; DX ->rate to play at.
@@ -7788,23 +7634,23 @@ ENDIF
 
 	mov	ax,cs
 	mov	ds,ax			; DS=CS
-	call	_ctv_output		; Send it.
+	call	ctv_output		; Send it.
 	add	sp,8			; Balance stack.
 
 	ret
-	endp
+PlaySound endp
 
-Proc	StopSound	near
+StopSound Proc	near
 	push	ds
 	push	cs
 	pop	ds
-	call	_ctv_halt
+	call	ctv_halt
 	pop	ds
 	ret
-	endp
+StopSound endp
 
 
-Proc	DoCallBacks	near
+DoCallBacks Proc near
 	cmp	[cs:CallBacks],0
 	je	@@GOUT
 	PushAll 		; Save all registers
@@ -7812,7 +7658,7 @@ Proc	DoCallBacks	near
 	call	[cs:CallBack]	; far call to application.
 	PopAll			; Restore all registers.
 @@GOUT: ret
-	endp
+DoCallBacks endp
 
 ENDIF
 
@@ -7824,7 +7670,7 @@ tanfreq dw	?		; frequency, in tandy values.
 
 Old15	FARPTR <>	; Original interupt 15h vector.
 
-Proc	PlaySound	near
+PlaySound Proc	near
 	PushAll 	; Save ALL registers.
 
 	push	bx
@@ -7857,13 +7703,12 @@ Proc	PlaySound	near
 	mov	[cs:tanlen],cx
 	mov	[cs:tanfreq],dx
 
-
 	mov	ah,35h		; Function get interupt vector
 	mov	al,15h		; Get interupt vector #15
 	int	21h		; Get it.
 	mov	[Old15.XPTR.POFF],bx
 	mov	[Old15.XPTR.PSEG],es
-	lea	dx,[My15]	; Address of my interupt routine
+	xlea	dx,My15		; Address of my interupt routine
 	mov	ah,25h
 	mov	al,15h		; Call set interupt vector.
 	int	21h		; set it.
@@ -7874,9 +7719,9 @@ Proc	PlaySound	near
 	pop	es
 
 	cmp	cx,16384	; Is it too big to send at once?
-	jbe	@@OK
+	jbe	@F
 	mov	cx,16384
-@@OK:	sub	[cs:tanlen],cx	; Ok!
+@@:	sub	[cs:tanlen],cx	; Ok!
 	add	[cs:tanoff],cx
 
 	mov	ah,83h		; Output sound to speaker.
@@ -7886,9 +7731,9 @@ Proc	PlaySound	near
 
 	PopAll
 	ret
-	endp
+PlaySound endp
 
-Proc	My15 far
+My15 	Proc	far
 	cmp	ax,91FBh
 	jne	@@OLD15
 	SetSemaphore
@@ -7902,9 +7747,9 @@ Proc	My15 far
 	mov	dx,[cs:tanfreq]
 
 	cmp	cx,16384	; Is it too big to send at once?
-	jbe	@@OK
+	jbe	@F
 	mov	cx,16384
-@@OK:	sub	[cs:tanlen],cx	; Ok!
+@@:	sub	[cs:tanlen],cx	; Ok!
 	add	[cs:tanoff],cx
 
 	mov	ah,83h		; Output sound to speaker.
@@ -7916,19 +7761,19 @@ Proc	My15 far
 	xor	ax,ax
 	mov	ds,ax
 	mov	ax,[cs:Old15.XPTR.POFF] ; get offset.
-	mov	[ds:15h*4],ax
+	mov	ds:[15h*4],ax
 	mov	ax,[cs:Old15.XPTR.PSEG] ; get old segment
-	mov	[ds:15h*4+2],ax
-	call	CheckCallback	;
+	mov	ds:[15h*4+2],ax
+	call	CheckCallBack	;
 @@LEAVE:
 	PopAll
-@@EXIT:
+;@@EXIT:
 	ClearSemaphoreIRET
 @@OLD15:
 	jmp	[cs:Old15.DPTR] 	     ; Jump to the old vector.
-	endp
+My15	endp
 
-Proc	StopSound	near
+StopSound Proc	near
 	cli
 	cmp	[cs:PlayingSound],1		; Currently playing a sound?
 	jne	@@notout
@@ -7940,12 +7785,12 @@ Proc	StopSound	near
 @@notout:
 	sti
 	ret
-	endp
+StopSound endp
 
 ENDIF
 
 IF	DIG_DIGISP
-Proc	TranslateSound	near
+TranslateSound Proc near
 	PushAll 		; Save all registers.
 
 	xor	ax,ax		; No changed length, by default.
@@ -7978,11 +7823,11 @@ Proc	TranslateSound	near
 @@DON:
 @@PLAY:
 	PopAll
-	mov	[byte es:bx],80h	; PCM needs 80h header byte.
+	mov	byte ptr es:[bx],80h	; PCM needs 80h header byte.
 	ret
-	endp
+TranslateSound	endp
 
-Proc	PlaySound	near
+PlaySound Proc	near
 	cmp	dx,8000 		; <= 8khz?
 	jle	@@PLAY			; yes, just play it at 8.
 @@DOWNIT:
@@ -8004,12 +7849,12 @@ Proc	PlaySound	near
 	int	4Dh
 	mov	[cs:PlayingSound],0
 	ret
-	endp
+PlaySound endp
 
 ;; Not implemented.
-Proc	StopSound	near
+StopSound Proc	near
 	ret
-	endp
+StopSound endp
 
 ENDIF
 
@@ -8017,7 +7862,7 @@ ENDIF
 IF	DIG_IBMSND
 INTmask db	0		; Interupt controller mask.
 INTmask2 db	0		; second pic
-Proc    PlaySound       near
+PlaySound Proc    near
 	mov	si,dx		; Frequency into SI
 	mov	dx,0012h	; High word of 1,193,180.
 	mov	ax,34DCh	; Low word of 1,193,180.
@@ -8058,9 +7903,9 @@ Proc    PlaySound       near
 
 	call	CheckCallBack
 	ret
-	endp
+PlaySound endp
 
-Proc	DigPlay   near
+DigPlay Proc	near
 ;;; This procedure will play a digitzed sound sample using all of the
 ;;; processor's CPU.  In the background the Timer interupt is incrementing
 ;;; the sample load address at the exact frequency of the sampling rate
@@ -8131,26 +7976,26 @@ Proc	DigPlay   near
 	pop	bp
 	pop	ds
 	ret
-	endp
+DigPlay endp
 
 	ALIGN	4
-Proc	Int0	  far
+Int0	Proc far
 	dec	cx
 	mov	al,ah			; 2(2)	 get interupt enable bit
 	out	20h,al			; 10(9)  Send a nonspecific EOI
 	sti				;  2	 restore hardware interupts.
 	ret	2			; 25(25) return from hardware interupt.
-	endp
+Int0	endp
 
-Proc	StopSound
+StopSound proc near	
 	ret
-	endp
+StopSound	endp
 
 command_reg     equ 43h
 channel_0       equ 40h
 channel_2       equ 42h         ; speaker's frequency oscillator.
 
-Proc	trate  near
+trate 	Proc near
 ; This routine sets the rate at which the timer routine is
 ; interupted and the cutoff value for one bit sound
 ; called as:
@@ -8165,30 +8010,30 @@ Proc	trate  near
         mov     al,ah
         out     channel_0,al
         ret
-	endp
+trate	endp
 
 
 OldTimer FARPTR <>	; Original timer interupt vector.
 
-Proc	tinstall near
+tinstall Proc	near
 ; Install timer interupt routine
         push    es              ; save extra segment
 	xor	ax,ax
 	mov	es,ax
-	mov	ax,[es:INT8OFF]     ; Get offset portion.
+	mov	ax,es:[INT8OFF]     ; Get offset portion.
 	mov	[OldTimer.XPTR.POFF],ax
-	mov	ax,[es:INT8SEG]
+	mov	ax,es:[INT8SEG]
 	mov	[OldTimer.XPTR.PSEG],ax
-	mov	[word es:INT8OFF],offset INT0
-	mov	[es:INT8SEG],cs
+	mov	word ptr es:[INT8OFF],offset Int0
+	mov	es:[INT8SEG],cs
         pop     es
         RET
-	ENDP
+tinstall ENDP
 
 INT8OFF         equ     8*4
 INT8SEG         equ     8*4+2
 
-Proc	rtimer near
+rtimer 	Proc	near
 ; This routine restores the timer interupt to what it was originally.
 	push	ds
 	push	dx
@@ -8199,15 +8044,15 @@ Proc	rtimer near
 	xor	ax,ax
 	mov	ds,ax		; Segment zero
 	mov	ax,[cs:OldTimer.XPTR.POFF] ; get offset.
-	mov	[ds:INT8OFF],ax      ; Set offset.
+	mov	ds:[INT8OFF],ax      ; Set offset.
 	mov	ax,[cs:OldTimer.XPTR.PSEG] ; get segment.
-	mov	[ds:INT8SEG],ax
+	mov	ds:[INT8SEG],ax
 
 	pop	ax
 	pop	dx
 	pop	ds
         RET
-	ENDP
+rtimer	ENDP
 
 
 ;----------------------------------------------------------------------------
@@ -8219,7 +8064,7 @@ Proc	rtimer near
 ;
 ; OutPut:
 ;----------------------------------------------------------------------------
-Proc	ResetTimer    near
+ResetTimer  Proc near
 ;; Reset timer chip to normal operation.
 
         in      al,61h
@@ -8227,13 +8072,13 @@ Proc	ResetTimer    near
         out     61h,al
 
 	ret
-	endp
+ResetTimer endp
 
 ENDIF
 
 IF	DIG_ADLIB OR DIG_CVXSND OR DIG_VMSND OR DIG_SMSND OR DIG_TANEXTX OR DIG_SOURCE OR DIG_ECHOII OR DIG_IBMBAK OR DIG_IBM1BIT OR DIG_BIGMOUTH OR DIG_T2500
 
-Proc    PlaySound near
+PlaySound Proc    near
 ;; CX ->number of bytes in sound sample.
 ;; DS = Code group.
 ;; ES:BX -> far address of sound sample to be played.
@@ -8309,7 +8154,7 @@ IF	DIG_IBMBAK
 ENDIF
 IF	DIG_CVXSND OR DIG_VMSND OR DIG_SMSND OR DIG_SOURCE OR DIG_ADLIB OR DIG_ECHOII OR DIG_BIGMOUTH OR DIG_T2500
 ;;; Data sample goes out here...............
-LABEL	PORTMOD WORD
+PORTMOD LABEL	WORD
 	mov	dx,0389h	; Data port.
 IF	DIG_SOURCE
 	OUT	DX,AL		;Send data to SS
@@ -8323,14 +8168,14 @@ IF	DIG_SOURCE
 	OUT	DX,AL
 ENDIF
 IF	DIG_ECHOII
-	  mov	  ah,al
+	mov	  ah,al
   ;;; Data sample goes out here...............
-	  in	  al,dx 	  ; Get status.
-	  mov	  al,ah
-	  out	  dx,al 		  ; Send it.
+	in	  al,dx 	  ; Get status.
+	mov	  al,ah
+	out	  dx,al 		  ; Send it.
 ENDIF
 IF	DIG_CVXSND OR DIG_VMSND OR DIG_SMSND OR DIG_ADLIB OR DIG_BIGMOUTH OR DIG_T2500
-	  out	  dx,al 		  ; Send it.
+	out	  dx,al 		  ; Send it.
 ENDIF
 ENDIF
 IF	DIG_TANEXTX
@@ -8449,9 +8294,9 @@ ENDIF
 	call	trate		; Set the timer rate.
 ENDIF
 	ret
-	endp
+PlaySound	endp
 
-Proc	StopSound	near
+StopSound Proc	near
 	PushCREGS
 	push	cs
 	pop	ds
@@ -8494,7 +8339,7 @@ ENDIF
 @@GOUT:
 	PopCREGS
 	ret
-	endp
+StopSound endp
 
 IF	FOREGROUND
 ELSE
@@ -8503,7 +8348,7 @@ command_reg     equ 43h
 channel_0       equ 40h
 channel_2       equ 42h         ; speaker's frequency oscillator.
 
-Proc	trate  near
+trate 	Proc	near
 ; This routine sets the rate at which the timer routine is
 ; interupted and the cutoff value for one bit sound
 ; called as:
@@ -8518,31 +8363,31 @@ Proc	trate  near
         mov     al,ah
         out     channel_0,al
         ret
-	endp
+trate	endp
 
 
 OldTimer FARPTR <>	; Original timer interupt vector.
 
-Proc	tinstall near
+tinstall Proc	near
 ; Install timer interupt routine
         push    es              ; save extra segment
 	xor	ax,ax
 	mov	es,ax
-	mov	ax,[es:INT8OFF]     ; Get offset portion.
+	mov	ax,es:[INT8OFF]     ; Get offset portion.
 	mov	[OldTimer.XPTR.POFF],ax
-	mov	ax,[es:INT8SEG]
+	mov	ax,es:[INT8SEG]
 	mov	[OldTimer.XPTR.PSEG],ax
-	mov	[word es:INT8OFF],offset timer2
-	mov	[es:INT8SEG],cs
+	mov	word ptr es:[INT8OFF],offset timer2
+	mov	es:[INT8SEG],cs
 	mov	[flag],0	; Re-entrency flag, starts at 0.
         pop     es
         RET
-	ENDP
+tinstall	ENDP
 
 INT8OFF         equ     8*4
 INT8SEG         equ     8*4+2
 
-Proc	rtimer near
+rtimer 	Proc	near
 ; This routine restores the timer interupt to what it was originally.
 	push	ds
 	push	dx
@@ -8553,40 +8398,41 @@ Proc	rtimer near
 	xor	ax,ax
 	mov	ds,ax		; Segment zero
 	mov	ax,[cs:OldTimer.XPTR.POFF] ; get offset.
-	mov	[ds:INT8OFF],ax      ; Set offset.
+	mov	ds:[INT8OFF],ax      ; Set offset.
 	mov	ax,[cs:OldTimer.XPTR.PSEG] ; get segment.
-	mov	[ds:INT8SEG],ax
+	mov	ds:[INT8SEG],ax
 
 	pop	ax
 	pop	dx
 	pop	ds
         RET
-	ENDP
+rtimer	ENDP
 
-flag	dw	0
-tvalue	dw	?
+flag		dw	0
+tvalue		dw	?
 RateDown	dw	?	; Reload decrement count for servicing 18.2
-SEGSAMP dw	?		; Segment of sound sample.
+SEGSAMP 	dw	?		; Segment of sound sample.
 
 	ALIGN  16
 IF	DIG_IBMBAK
 TOTALLENGTH	dw	?	;
 STARTADDRESS	dw	?	; Starting address of sample
-Proc	TIMER2	FAR
+
+timer2	Proc	FAR
 	SetSemaphore
         push    ax              ; Save ax
         push    ds              ; Save data segment
 
 @@T3:	mov	ds,[cs:SEGSAMP] ;
-LABEL	ADDRESS WORD
-	mov	al,[1234h]	; Get sound sample.
+ADDRESS LABEL	WORD
+	mov	al,ds:[1234h]	; Get sound sample.
 	out	portTIMER2,al	    ; Send audio sample.
 	mov	ax,cs
 	mov	ds,ax
 	not	[ADDW+4]     ; Flip/Flop audio sample.
-LABEL	ADDW	BYTE
+ADDW	LABEL	BYTE
 	sub	[ADDRESS+1],0FFFFh
-LABEL	COMPARE WORD
+COMPARE LABEL	WORD
 	cmp	[ADDRESS+1],1234h      ; Hit end?
 	je	@@OUT		; yes, exit.
 	dec	[tvalue]
@@ -8609,22 +8455,23 @@ LABEL	COMPARE WORD
 	jmp short @@T3
 @@OUT:	call	StopSound
 	jmp short @@GOUT
-	ENDP
+timer2	ENDP
 ELSE
 
 IF	BACKFILL
-Proc	ReportDMAC
+ReportDMAC	Proc	
 	mov	ax,[cs:TOTALLENGTH]
 	mov	bx,[cs:ADDRESS+1]
 	sub	bx,[cs:STARTADDRESS]
 	sub	ax,bx
 	ret
-	endp
+ReportDMAC	endp
 ENDIF
 
 TOTALLENGTH	dw	?	;
 STARTADDRESS	dw	?	; Starting address of sample
-Proc    timer2  FAR
+
+timer2 	Proc    FAR
 	SetSemaphore
 	push	ax		; Save ax
 IF	DIG_CVXSND OR DIG_VMSND OR DIG_SMSND OR DIG_SOURCE OR DIG_ADLIB OR DIG_ECHOII OR DIG_BIGMOUTH OR DIG_T2500
@@ -8633,14 +8480,14 @@ ENDIF
 	push	ds		; Save data segment
 
 @@T3:	mov	ds,[cs:SEGSAMP] ; Place into data segment.
-LABEL	ADDRESS WORD
-	mov	al,[1234h]	; Get offset of data sampel.
+ADDRESS	LABEL	WORD
+	mov	al,ds:[1234h]	; Get offset of data sampel. xxx
 IF	NOSOUND
 	jmp	@@NEXT
 ENDIF
 IF	DIG_CVXSND OR DIG_VMSND OR DIG_SMSND OR DIG_SOURCE OR DIG_ADLIB OR DIG_ECHOII OR DIG_BIGMOUTH OR DIG_T2500
 ;;; Data sample goes out here...............
-LABEL	PORTMOD WORD
+PORTMOD LABEL	WORD
 	mov	dx,0389h	; Data port.
 IF	DIG_SOURCE
 	OUT	DX,AL		;Send data to SS
@@ -8654,14 +8501,14 @@ IF	DIG_SOURCE
 	OUT	DX,AL
 ENDIF
 IF	DIG_ECHOII
-	  mov	  ah,al
+  	mov	  ah,al
   ;;; Data sample goes out here...............
-	  in	  al,dx 	  ; Get status.
-	  mov	  al,ah
-	  out	  dx,al 		  ; Send it.
+	in	  al,dx 	  ; Get status.
+	mov	  al,ah
+	out	  dx,al 		  ; Send it.
 ENDIF
 IF	DIG_CVXSND OR DIG_VMSND OR DIG_SMSND OR DIG_ADLIB OR DIG_BIGMOUTH OR DIG_T2500
-	  out	  dx,al 		  ; Send it.
+	out	  dx,al 		  ; Send it.
 ENDIF
 ENDIF
 IF	DIG_TANEXTX
@@ -8673,7 +8520,7 @@ ENDIF
 ;;; Data sample sent to adlib board....
 @@NEXT:
 	inc	[cs:ADDRESS+1]
-LABEL	COMPARE WORD
+COMPARE LABEL	WORD
 	cmp	[cs:ADDRESS+1],1234h	  ; Hit end?
 	je	@@OUT
 @@GOUT:
@@ -8711,7 +8558,7 @@ IF	BACKFILL
 ENDIF
 	call	StopSound
 	jmp short @@GOUT
-	ENDP
+timer2	ENDP
 ENDIF
 
 ENDIF
@@ -8727,22 +8574,22 @@ ENDIF
 IF DIG_ARIA
 
 
-pan_graph  	  db 0,4,8,12,16,20,24,28         	  ;  0 - 7
-							db 32,36,40,44,48,52,56,60     		  ;  8 - 15
-							db 64,68,72,76,80,84,88,92 	        ; 16 - 23
-							db 96,100,104,108,112,116,120,124 	; 24 - 31
-							db 128,132,136,140,144,148,152,156 	; 32 - 39
-							db 160,164,168,172,176,180,184,188	; 40 - 47
-							db 192,196,200,204,208,212,216,220	; 48 - 55
-							db 224,228,232,236,240,244,252,255	; 56 - 63
-							db 255,255,255,255,255,255,255,255  ; 64 -
-							db 255,255,255,255,255,255,255,255
-							db 255,255,255,255,255,255,255,255
-							db 255,255,255,255,255,255,255,255
-							db 255,255,255,255,255,255,255,255
-							db 255,255,255,255,255,255,255,255
-							db 255,255,255,255,255,255,255,255
-							db 255,255,255,255,255,255,255,255
+pan_graph  	db 0,4,8,12,16,20,24,28         	;  0 - 7
+		db 32,36,40,44,48,52,56,60     		;  8 - 15
+		db 64,68,72,76,80,84,88,92 	        ; 16 - 23
+		db 96,100,104,108,112,116,120,124 	; 24 - 31
+		db 128,132,136,140,144,148,152,156 	; 32 - 39
+		db 160,164,168,172,176,180,184,188	; 40 - 47
+		db 192,196,200,204,208,212,216,220	; 48 - 55
+		db 224,228,232,236,240,244,252,255	; 56 - 63
+		db 255,255,255,255,255,255,255,255 	; 64 -
+		db 255,255,255,255,255,255,255,255
+		db 255,255,255,255,255,255,255,255
+		db 255,255,255,255,255,255,255,255
+		db 255,255,255,255,255,255,255,255
+		db 255,255,255,255,255,255,255,255
+		db 255,255,255,255,255,255,255,255
+		db 255,255,255,255,255,255,255,255
 
 DSP_DATA      dw ?     ;IO_Addr+0h
 DSP_CTRL_STAT dw ?     ;+02h
@@ -8750,11 +8597,11 @@ DSP_DMADDR    dw ?     ;+04h
 DSP_DMADATA   dw ?     ;+04h
 DSP_IRQ       dw ?
 
-acc		        dw 0     ; error accumulator for up/down sampling
-ratio		      dw ?		 ; offset for up/down sampling
-ratio_h		    dw ?		 ; highest byte of ratio
-sending		    dw ?		 ; number of bytes sent in transfer
-irq_busy	    dw ?		 ; flag to indicate IRQ handler is busy
+acc	      dw 0     ; error accumulator for up/down sampling
+ratio	      dw ?		 ; offset for up/down sampling
+ratio_h	      dw ?		 ; highest byte of ratio
+sending	      dw ?		 ; number of bytes sent in transfer
+irq_busy      dw ?		 ; flag to indicate IRQ handler is busy
 
 main_volume   dw 100   ; current volume
 panpot        dw 64    ; current pan value
@@ -8817,51 +8664,51 @@ critical      dw 0     ; true if nearing end of sample
 ;                                |___________ ADPCM(4:1), 0:disable, 1:enable
 ;
 ;----------------------------------------------------------------------
-proc set_sample_rate near     ;Establish DSP sample rate and playback mode
-			mov  dx,[PlayMode]
-			cmp  dx,[old_playmode]
-			jne  short @@setparms
-			cmp  ax,[old_freq]    ;avoid clicks by skipping if were not changing
-			je   short @@exit     ;any parameters
+set_sample_rate	proc  near     ;Establish DSP sample rate and playback mode
+	mov  dx,[PlayMode]
+	cmp  dx,[old_playmode]
+	jne  short @@setparms
+	cmp  ax,[old_freq]    ;avoid clicks by skipping if were not changing
+	je   short @@exit     ;any parameters
 
 @@setparms:
-			mov  [old_freq],ax		; save new freq as old
-			mov  [old_playmode],dx
+	mov  [old_freq],ax		; save new freq as old
+	mov  [old_playmode],dx
 
-			xor  dx,dx		        ; clear dx
-			mov  [acc],dx		      ; reset acc
-			mov  bx,22050		      ; 22.050kHz
-			div  bx			          ; dx:ax / bx = ax == ratio_h
-			mov  [ratio_h],ax		  ; save in
-			xor  ax,ax		        ; clear ax => remainder * 65536
-			div  bx			          ; /fix rate => ax = ratio
-			mov  [ratio],ax		    ;
+	xor  dx,dx		        ; clear dx
+	mov  [acc],dx		      ; reset acc
+	mov  bx,22050		      ; 22.050kHz
+	div  bx			          ; dx:ax / bx = ax == ratio_h
+	mov  [ratio_h],ax		  ; save in
+	xor  ax,ax		        ; clear ax => remainder * 65536
+	div  bx			          ; /fix rate => ax = ratio
+	mov  [ratio],ax		    ;
 
-			mov  ax,[PlayMode]    ; Use this.  The bits match the format perfectly
-			and  ax,3             ; Mask off unwanted bits just in case
-			or   ax,10h
+	mov  ax,[PlayMode]    ; Use this.  The bits match the format perfectly
+	and_ax_n 3             ; Mask off unwanted bits just in case
+	or_ax_n 10h
 ;@@skip2:
 
-			push ax
-			cli
-			mov  ax,3
-			call sendDSP_time
-			pop  ax
-			call sendDSP_time
-			mov  ax,-1
-			call sendDSP_time
-			sti
+	push ax
+	cli
+	mov  ax,3
+	call sendDSP_time
+	pop  ax
+	call sendDSP_time
+	mov  ax,-1
+	call sendDSP_time
+	sti
 
-			mov  dx,[DSP_CTRL_STAT]	; get control reg
-			in   ax,dx		        ; read in control data
-			and  ax,0ff9fh		    ; clear sample rate bits
-			or   ax,040h		      ; set 22kHz
-			out  dx,ax		        ; set it
+	mov  dx,[DSP_CTRL_STAT]	; get control reg
+	in   ax,dx		        ; read in control data
+	and_ax_n 0ff9fh		    ; clear sample rate bits
+	or_ax_n 040h		      ; set 22kHz
+	out  dx,ax		        ; set it
 
 @@exit:
-			mov  ax,1
-			ret
-ENDP
+	mov  ax,1
+	ret
+set_sample_rate ENDP
 
 ;----------------------------------------------------------------------
 ;  Procedure: set_volume
@@ -8893,156 +8740,156 @@ ENDP
 ;     left output level = pan pos * multiple constant * volume scale
 ;     right output level = (127-pan pos) * multiple constant * volume scale
 ;----------------------------------------------------------------------
-proc set_volume near
-			push si
-			push di
+set_volume proc near
+	push si
+	push di
 
-			mov  si,127
-			sub  si,[panpot]		    ; right side scale
-			mov  al,[pan_graph+si]	; get multiple constant fm lookup tbl
-			mul  [byte main_volume] ; ax = al * main_volume
-			mov  di,ax              ; DI = right volume 0 - 32385
+	mov  si,127
+	sub  si,[panpot]		    ; right side scale
+	mov  al,[pan_graph+si]	; get multiple constant fm lookup tbl
+	mul  [byte ptr main_volume] ; ax = al * main_volume
+	mov  di,ax              ; DI = right volume 0 - 32385
 
-			mov  si,[panpot]		    ; regain panpot
-			mov  al,[pan_graph+si]	; get multiple constant fm lookup tbl
-			mul  [byte main_volume] ; ax = al * main_volume
-			mov  si,ax              ; SI = left volume 0 - 32385
+	mov  si,[panpot]		    ; regain panpot
+	mov  al,[pan_graph+si]	; get multiple constant fm lookup tbl
+	mul  [byte ptr main_volume] ; ax = al * main_volume
+	mov  si,ax              ; SI = left volume 0 - 32385
 
-			call set_volume_helper
+	call set_volume_helper
 
-			pop  di
-			pop  si
-			ret
-ENDP
+        pop  di
+	pop  si
+	ret
+set_volume ENDP
 
-proc set_volume_helper near
-			cli
-			mov  ax,4
-			call sendDSP_time
-			mov  ax,si
-			call sendDSP_time
-			mov  ax,di
-			call sendDSP_time
-			mov  ax,-1
-			call sendDSP_time
-			sti
-			ret
-endp
+set_volume_helper proc near
+	cli
+	mov  ax,4
+	call sendDSP_time
+	mov  ax,si
+	call sendDSP_time
+	mov  ax,di
+	call sendDSP_time
+	mov  ax,-1
+	call sendDSP_time
+	sti
+	ret
+set_volume_helper endp
 
-proc IRQ_play_buffer far      ;Main IRQ handler
-			sti
-			push ax
-			push bx
-			push cx
-			push dx
-			push si
-			push di
-			push bp
-			push ds
-			push es
-			cld
-			push cs
-			pop  ds
+IRQ_play_buffer proc far      ;Main IRQ handler
+	sti
+	push ax
+	push bx
+	push cx
+	push dx
+	push si
+	push di
+	push bp
+	push ds
+	push es
+	cld
+	push cs
+	pop  ds
 
-			cmp  [irq_busy],1		          ; is in the middle of service?
-			je   short @@EOIonly		            ; yes, ignore the interrupt, jmp
-																		; nope,
-			mov  [irq_busy],1		          ; set in service flag
-			cmp  [PlayingSound],1
-			je   short @@endbuf
+	cmp  [irq_busy],1		          ; is in the middle of service?
+	je   short @@EOIonly		            ; yes, ignore the interrupt, jmp
+																; nope,
+	mov  [irq_busy],1		          ; set in service flag
+	cmp  [PlayingSound],1
+	je   short @@endbuf
 
-;			xor  ax,ax                    ;this wreaks havoc on unloading and
-;			call halt_DMA                 ;reloading the driver with Midpak.
+;	xor  ax,ax                    ;this wreaks havoc on unloading and
+;	call halt_DMA                 ;reloading the driver with Midpak.
 
-			jmp  short @@EOI
+	jmp  short @@EOI
 
 @@endbuf:
-			cmp  [PENDING],0              ;always do another chunk if another
-			jne  short @@always           ;sound is pending.
-			cmp  [DMA_len_l],0
-			je   short @@end_of_block
+	cmp  [PENDING],0              ;always do another chunk if another
+	jne  short @@always           ;sound is pending.
+	cmp  [DMA_len_l],0
+	je   short @@end_of_block
 
 @@always:
-			call xfer_chunk               ; no, send next chunk
-			jmp  short @@EOI
+	call xfer_chunk               ; no, send next chunk
+	jmp  short @@EOI
 
 @@end_of_block:
-			call IRQ_rest_vect            ; restore vector back
-			mov  [PlayingSound],0
+	call IRQ_rest_vect            ; restore vector back
+	mov  [PlayingSound],0
 
 @@EOI:
-			mov  al,20h                   ;send EOI to PIC
-			cmp  [DSP_IRQ],8              ;clear PIC1 if IRQ >= 8
-			jb   short @@master
-			out  0a0h,al
+	mov  al,20h                   ;send EOI to PIC
+	cmp  [DSP_IRQ],8              ;clear PIC1 if IRQ >= 8
+	jb   short @@master
+	out  0a0h,al
 @@master:
-			out  20h,al
+	out  20h,al
 
-			cmp  [PlayingSound],0
-			jne  short @@exit
-			call CheckCallBack
+	cmp  [PlayingSound],0
+	jne  short @@exit
+	call CheckCallBack
 
 @@exit:
-			mov  [irq_busy],0
+	mov  [irq_busy],0
 @@exit2:
-			pop  es
-			pop  ds
-			pop  bp
-			pop  di
-			pop  si
-			pop  dx
-			pop  cx
-			pop  bx
-			pop  ax
-			iret
+	pop  es
+	pop  ds
+	pop  bp
+	pop  di
+	pop  si
+	pop  dx
+	pop  cx
+	pop  bx
+	pop  ax
+	iret
 
 @@EOIonly:                          ;no irq_busy reset/call back check
-			mov  al,20h                   ;send EOI to PIC
-			cmp  [DSP_IRQ],8              ;clear PIC1 if IRQ >= 8
-			jb   short @@master2
-			out  0a0h,al
+	mov  al,20h                   ;send EOI to PIC
+	cmp  [DSP_IRQ],8              ;clear PIC1 if IRQ >= 8
+	jb   short @@master2
+	out  0a0h,al
 @@master2:
-			out  20h,al
-			jmp  @@exit2
-ENDP
+	out  20h,al
+	jmp  @@exit2
+IRQ_play_buffer ENDP
 
-proc xfer_chunk near          ;Get addr, size of next chunk; send it
-			mov  dx,1024            ; assume 1KBytes length
-			cmp  [ratio_h],1		    ; upsampling?
-			jb   short @@chkendbuf  ; yes, jmp
-			cmp  [ratio],0		      ; nope, is no shifting?
-			je   short @@chkendbuf  ; yes, jmp
-			mov  dx,2048            ; compensate for rates > 22KHz
+xfer_chunk proc near          ;Get addr, size of next chunk; send it
+	mov  dx,1024            ; assume 1KBytes length
+	cmp  [ratio_h],1		    ; upsampling?
+	jb   short @@chkendbuf  ; yes, jmp
+	cmp  [ratio],0		      ; nope, is no shifting?
+	je   short @@chkendbuf  ; yes, jmp
+	mov  dx,2048            ; compensate for rates > 22KHz
 
 @@chkendbuf:
-			mov  ax,[DMA_len_l]
-			mov  [critical],0		    ; assume length is ok
-			cmp  ax,dx              ; nearing end of sample?
-			ja   short @@len_OK		  ;
-			mov  [critical],1		    ; critical status flag
+	mov  ax,[DMA_len_l]
+	mov  [critical],0		    ; assume length is ok
+	cmp  ax,dx              ; nearing end of sample?
+	ja   short @@len_OK		  ;
+	mov  [critical],1		    ; critical status flag
 
 @@len_OK:
-			mov  dx,[DSP_CTRL_STAT]	; DSP control port
-			mov  ax,0cah		        ; interrupt PC & DSP at data write
-			out  dx,ax		          ; set control port
+	mov  dx,[DSP_CTRL_STAT]	; DSP control port
+	mov  ax,0cah		        ; interrupt PC & DSP at data write
+	out  dx,ax		          ; set control port
 
-;			test [PlayMode],1       ; stereo or mono?
-;			jz   short @@domono
-;			call setpacket_ster     ; up/down sample stereo sample ax=bytes read
-;			jmp  short @@done
+;	test [PlayMode],1       ; stereo or mono?
+;	jz   short @@domono
+;	call setpacket_ster     ; up/down sample stereo sample ax=bytes read
+;	jmp  short @@done
 ;@@domono:
-			call setpacket_mono     ; up/down sample mono sample, ax=bytes read.
+	call setpacket_mono     ; up/down sample mono sample, ax=bytes read.
 ;@@done:
 
-			push ax
-			call xfer_packet	      ; transfer packet
-			pop  ax
+	push ax
+	call xfer_packet	      ; transfer packet
+	pop  ax
 
-			add  [word DMA_ptr],ax
-			sub  [DMA_len_l],ax     ;subtract len of transmitted chunk +1
+	add  [word ptr DMA_ptr],ax
+	sub  [DMA_len_l],ax     ;subtract len of transmitted chunk +1
 
-			ret
-ENDP
+	ret
+xfer_chunk ENDP
 
 ;---------------------------------------------------------------------
 ;  Procedure: setpacket()
@@ -9067,90 +8914,90 @@ ENDP
 ;         or append a pending sample.
 ;
 ;----------------------------------------------------------------------
-proc setpacket_mono near
+setpacket_mono proc near
 
-			call setFIFOaddr	   ; set DMA address ready
-			les  si,[DMA_ptr]		 ; get the address of
-			;
-			;  512 words of data per packet
-			;
-			mov  [sending],1	   ; start from 1 byte
-			test [PlayMode],1    ; stereo?
-			jz   short @@no1
-			inc  [sending]       ; start at two for stereo
+	call setFIFOaddr	   ; set DMA address ready
+	les  si,[DMA_ptr]		 ; get the address of
+	;
+	;  512 words of data per packet
+	;
+	mov  [sending],1	   ; start from 1 byte
+	test [PlayMode],1    ; stereo?
+	jz   short @@no1
+	inc  [sending]       ; start at two for stereo
 @@no1:
-			mov  ax,-1		       ; set flag to indicate not end of buf
-			mov  cx,512		       ; 8-bit sample rate, total 1024 byte
-			cmp  [DMA_len_l],0   ; just in case we're on even boundary
-			jne  short @@nxtword
-			xor  dx,dx
-			call adv_ptr
+	mov  ax,-1		       ; set flag to indicate not end of buf
+	mov  cx,512		       ; 8-bit sample rate, total 1024 byte
+	cmp  [DMA_len_l],0   ; just in case we're on even boundary
+	jne  short @@nxtword
+	xor  dx,dx
+	call adv_ptr
 
 @@nxtword:
-			mov  bx,8080h        ; assume silence
-			xor  dx,dx		       ; assume ->there is no need to move ptr
-			or   ax,ax		       ;  because of the end of buffer. Is it?
-			jz   short @@mvsi_1	 ; yes -> jmp
+	mov  bx,8080h        ; assume silence
+	xor  dx,dx		       ; assume ->there is no need to move ptr
+	or   ax,ax		       ;  because of the end of buffer. Is it?
+	jz   short @@mvsi_1	 ; yes -> jmp
 
-			mov  bl,[es:si]		   ; no, load the current byte in bl
-			mov  bh,[es:si+1]    ; assume stereo and read right channel data
-			mov  ax,[acc]		     ; get accumulator
-													 ; dx == 0,  dx:ax == 0:acc
-			add  ax,[ratio]		   ; fraction portion
-			adc  dx,[ratio_h]		 ; bytes to advance pointer in dx
-			test [PlayMode],1    ; are we in stereo?
-			jz   short @@no2
-			shl  dx,1            ; move ptr by double the amount
+	mov  bl,es:[si]		   ; no, load the current byte in bl
+	mov  bh,es:[si+1]    ; assume stereo and read right channel data
+	mov  ax,[acc]		     ; get accumulator
+											 ; dx == 0,  dx:ax == 0:acc
+	add  ax,[ratio]		   ; fraction portion
+	adc  dx,[ratio_h]		 ; bytes to advance pointer in dx
+	test [PlayMode],1    ; are we in stereo?
+	jz   short @@no2
+	shl  dx,1            ; move ptr by double the amount
 @@no2:
-			mov  [acc],ax		     ; save fraction
-			mov  ax,-1		       ; flag not the end of buffer
-													 ; dx == bytes to advance pointer
-			cmp  [critical],1		 ; Do we need to check end of buffer?
-			jne  short @@mvsi_1	 ; nope,  jmp
-			call adv_ptr 		     ; ax = 0 if its the end of the buffer
-													 ; ax = -1, switched to pending buffer
+	mov  [acc],ax		     ; save fraction
+	mov  ax,-1		       ; flag not the end of buffer
+											 ; dx == bytes to advance pointer
+	cmp  [critical],1		 ; Do we need to check end of buffer?
+	jne  short @@mvsi_1	 ; nope,  jmp
+	call adv_ptr 		     ; ax = 0 if its the end of the buffer
+											 ; ax = -1, switched to pending buffer
 
 @@mvsi_1:
-			add  si,dx		       ; move pointer
-			add  [sending],dx	   ; actual data move in voice data
+	add  si,dx		       ; move pointer
+	add  [sending],dx	   ; actual data move in voice data
 
-			test [PlayMode],1    ; if stereo, skip all this, we have our
-			jnz  short @@set1    ; right channel data in BH already.
+	test [PlayMode],1    ; if stereo, skip all this, we have our
+	jnz  short @@set1    ; right channel data in BH already.
 
-			mov  bh,80h          ; assume silence
-			xor  dx,dx		       ; assume ->there is no need to move ptr
-			or   ax,ax		       ; because of the end of buffer, Is it?
-			jz   short @@set1	   ; yes -> jmp
-													 ; nope
-			mov  bh,[es:si]	     ; get one more byte
-			mov  ax,[acc]		     ; get accumulator
-													 ; dx == 0, dx:ax == 0:acc
-			add  ax,[ratio]		   ; fraction portion
-			adc  dx,[ratio_h]		 ; bytes to advance pointer in dx
-			mov  [acc],ax		     ; save fraction
-			mov  ax,-1		       ; flag not the end of buffer
-													 ; dx == bytes to advance pointer
-			cmp  [critical],1		 ; Do we need to check end of buffer?
-			jne  short @@mvsi_2	 ; nope,  jmp
-			call adv_ptr 		     ; return:
-													 ;   ax = 0, if it's the end of buffer
-													 ;   ax = -1, not the end
+	mov  bh,80h          ; assume silence
+	xor  dx,dx		       ; assume ->there is no need to move ptr
+	or   ax,ax		       ; because of the end of buffer, Is it?
+	jz   short @@set1	   ; yes -> jmp
+											 ; nope
+	mov  bh,es:[si]	     ; get one more byte
+	mov  ax,[acc]		     ; get accumulator
+											 ; dx == 0, dx:ax == 0:acc
+	add  ax,[ratio]		   ; fraction portion
+	adc  dx,[ratio_h]		 ; bytes to advance pointer in dx
+	mov  [acc],ax		     ; save fraction
+	mov  ax,-1		       ; flag not the end of buffer
+											 ; dx == bytes to advance pointer
+	cmp  [critical],1		 ; Do we need to check end of buffer?
+	jne  short @@mvsi_2	 ; nope,  jmp
+	call adv_ptr 		     ; return:
+											 ;   ax = 0, if it's the end of buffer
+											 ;   ax = -1, not the end
 @@mvsi_2:
-			add  si,dx
-			add  [sending],dx
+	add  si,dx
+	add  [sending],dx
 
 @@set1:
-			mov  dx,[DSP_DMADATA]
-			push ax			         ; save ending of buffer flag
-			mov  ax,bx		       ; get value
-			out  dx,ax		       ; send out one word
-			pop  ax			         ; restore ending flag
-			loop @@nxtword
+	mov  dx,[DSP_DMADATA]
+	push ax			         ; save ending of buffer flag
+	mov  ax,bx		       ; get value
+	out  dx,ax		       ; send out one word
+	pop  ax			         ; restore ending flag
+	loop @@nxtword
 
-			mov  ax,[sending]		 ; actual block length
+	mov  ax,[sending]		 ; actual block length
 @@exit:
-			ret
-ENDP
+	ret
+setpacket_mono ENDP
 
 ;----------------------------------------------------------------------
 ;  Procedure: adv_ptr()
@@ -9166,10 +9013,10 @@ ENDP
 ;	      dx = bytes to advance in pointer
 ;
 ;----------------------------------------------------------------------
-proc adv_ptr near
-			mov  ax,[DMA_len_l]	        ; get low word of left bytes in buf
-			cmp  ax,[sending]		        ; more bytes in current playing buffer?
-			ja   short @@nochgptr
+adv_ptr proc near
+	mov  ax,[DMA_len_l]	        ; get low word of left bytes in buf
+	cmp  ax,[sending]		        ; more bytes in current playing buffer?
+	ja   short @@nochgptr
 
 ;// We handle pending sounds here so we don't get any silence inserted in
 ;// our two sounds.  We ONLY append the sound under these circumstances:
@@ -9182,56 +9029,56 @@ proc adv_ptr near
 ;// The CallBacks flag will be cleared if it points to the 'PlayPending'
 ;// procedure.
 
-			cmp  [PENDING],0
-			je   short @@nopending
-			lea  di,[PENDSND]
-			mov	 ax,[ds:(SOUNDSPEC di).FREQUENCY]
-			cmp  ax,[old_freq]
-			jne  short @@nopending
+	cmp  [PENDING],0
+	je   short @@nopending
+	xlea  	di,PENDSND
+	mov  	ax,(SOUNDSPEC ptr ds:[di]).FREQUENCY
+	cmp  	ax,[old_freq]
+	jne  	short @@nopending
 
-			cmp  [CallBacks],0
-			je   short @@skip1
-			lea  ax,[PlayPending]
-			cmp  ax,[word CallBack]
-			jne  short @@skip1
-			mov  ax,cs
-			cmp  ax,[word CallBack+2]
-			jne  short @@skip1
-			mov  [CallBacks],0          ;clear CallBacks if it points to us
+	cmp  	[CallBacks],0
+	je   	short @@skip1
+	xlea  	ax,PlayPending
+	cmp  ax,[word ptr CallBack]
+	jne  short @@skip1
+	mov  ax,cs
+	cmp  ax,[word ptr CallBack+2]
+	jne  short @@skip1
+	mov  [CallBacks],0          ;clear CallBacks if it points to us
 @@skip1:
-			mov  [sending],1            ;reset number of bytes sent.
-			test [PlayMode],1
-			jz   short @@skip2
-			inc  [sending]
+	mov  [sending],1            ;reset number of bytes sent.
+	test [PlayMode],1
+	jz   short @@skip2
+	inc  [sending]
 @@skip2:
-			mov  [PENDING],0            ;clear Pending flag
+	mov  [PENDING],0            ;clear Pending flag
 
-			lea  si,[PENDSND]
-			mov  ax,[(SOUNDSPEC si).PLAYLEN]
-			mov  [DMA_len_l],ax
-			mov  es,[(SOUNDSPEC si).PLAYADR.XPTR.PSEG]
-			mov  [word DMA_ptr+2],es
-			mov  si,[(SOUNDSPEC si).PLAYADR.XPTR.POFF]
-			mov  [word DMA_ptr],si
-			mov  [acc],0
+	xlea  si,PENDSND
+	mov  ax,(SOUNDSPEC ptr [si]).PLAYLEN
+	mov  [DMA_len_l],ax
+	mov  es,(SOUNDSPEC ptr [si]).PLAYADR.XPTR.PSEG
+	mov  [word ptr DMA_ptr+2],es
+	mov  si,(SOUNDSPEC ptr [si]).PLAYADR.XPTR.POFF
+	mov  [word ptr DMA_ptr],si
+	mov  [acc],0
 
-			sub  si,dx
-			sub  [sending],dx
+	sub  si,dx
+	sub  [sending],dx
 @@nochgptr:
-			mov  ax,-1
-			ret
+	mov  ax,-1
+	ret
 
 @@nopending:
-			mov  [PlayingSound],0       ; set done status
-			xor  ax,ax                  ; set end-of-buffer flag
-																	;   and no change in pointer
-			or   dx,dx	  	            ; any char to move?
-			jz   short @@noadj
-			sub  [sending],dx
-			xor  dx,dx		              ; no ptr advanced
+	mov  [PlayingSound],0       ; set done status
+	xor  ax,ax                  ; set end-of-buffer flag
+															;   and no change in pointer
+	or   dx,dx	  	            ; any char to move?
+	jz   short @@noadj
+	sub  [sending],dx
+	xor  dx,dx		              ; no ptr advanced
 @@noadj:
-			ret
-ENDP
+	ret
+adv_ptr ENDP
 
 ;----------------------------------------------------------------------
 ;  Procedure: xfer_packet()
@@ -9245,15 +9092,15 @@ ENDP
 ;  Remarks:
 ;
 ;----------------------------------------------------------------------
-proc xfer_packet near
-			cli
-			mov  ax,10h
-			call sendDSP_time
-			mov  ax,-1
-			call sendDSP_time
-			sti
-			ret
-ENDP
+xfer_packet proc near
+	cli
+	mov  ax,10h
+	call sendDSP_time
+	mov  ax,-1
+	call sendDSP_time
+	sti
+	ret
+xfer_packet ENDP
 
 ;----------------------------------------------------------------------
 ;  Procedure: setFIFOaddr()
@@ -9278,40 +9125,40 @@ ENDP
 ;           7C00h - 7EFFh:   FIFO - digital audio channel 0
 ;
 ;----------------------------------------------------------------------
-proc setFIFOaddr near
+setFIFOaddr proc near
 
-			mov  dx,[DSP_DMADDR] ; DSP RAM location reg
-			mov  ax,6100h		     ; FIFO buffer offset for playback
-			out  dx,ax		       ; set locatation
+	mov  dx,[DSP_DMADDR] ; DSP RAM location reg
+	mov  ax,6100h		     ; FIFO buffer offset for playback
+	out  dx,ax		       ; set locatation
 
-			inc  dx
-			inc  dx			         ; DSP RAM data reg
-			in   ax,dx		       ; read packetsize
-			dec  dx
-			dec  dx		  	       ;  DSP RAM address reg
-			mov  bx,ax		       ; save in bx
+	inc  dx
+	inc  dx			         ; DSP RAM data reg
+	in   ax,dx		       ; read packetsize
+	dec  dx
+	dec  dx		  	       ;  DSP RAM address reg
+	mov  bx,ax		       ; save in bx
 
 ;DMD: The following code seemed irrelevant.  This driver only uses
 ;Channel 0 so there's no reason to recalculate the offset each time.
 
-;		  mov  cx,1
-;		  mov  si,1024		     ; 1k bytes (512 words) per channel
+;	  mov  cx,1
+;	  mov  si,1024		     ; 1k bytes (512 words) per channel
 ;
-;		  xor  ax,ax		       ; start from 0
+;	  xor  ax,ax		       ; start from 0
 ;__chanFIFO:
-;		  add  ax,si
-;		  loop __chanFIFO
-;		  mov  si,ax		       ; si holds the offset from the top
+;	 add  ax,si
+;	  loop __chanFIFO
+;	  mov  si,ax		       ; si holds the offset from the top
 ;
-;		  mov  ax,8000h		     ; top of the address of DSP FIFO buffer
-;		  sub  ax,si		       ; address for audio channel 0
+;	  mov  ax,8000h		     ; top of the address of DSP FIFO buffer
+;	  sub  ax,si		       ; address for audio channel 0
 
-			mov  ax,7c00h
-			add  ax,bx		       ; adjust offset
+	mov  ax,7c00h
+	add  ax,bx		       ; adjust offset
 
-			out  dx,ax		       ; set buffer offset
-			ret
-ENDP
+	out  dx,ax		       ; set buffer offset
+	ret
+setFIFOaddr ENDP
 
 ;----------------------------------------------------------------------
 ;  Procedure: sendDSP_time()
@@ -9329,29 +9176,29 @@ ENDP
 ;
 ;----------------------------------------------------------------------
 
-proc sendDSP_time near
-			mov  bx,ax
-			push cx
-			mov  cx,1000h		          ; 4000 times
-			mov  dx,[DSP_CTRL_STAT]   ; DSP write status
+sendDSP_time proc near
+	mov  bx,ax
+	push cx
+	mov  cx,1000h		          ; 4000 times
+	mov  dx,[DSP_CTRL_STAT]   ; DSP write status
 @@poll_cts:
-			in   ax,dx		            ; read in
-			test ax,8000h		          ; ready to write to DSP?
-			jz   short @@cts	        ; yes, jmp
-			loop @@poll_cts	    	    ; nope, - to read again
-			xor  ax,ax                ; set fail flag
-			jmp  short @@seterr
-						; DSP is ready to write
+	in   ax,dx		            ; read in
+	test ax,8000h		          ; ready to write to DSP?
+	jz   short @@cts	        ; yes, jmp
+	loop @@poll_cts	    	    ; nope, - to read again
+	xor  ax,ax                ; set fail flag
+	jmp  short @@seterr
+				; DSP is ready to write
 @@cts:
-			mov  dx,[DSP_DATA]	  	  ; DSP data reg
-			mov  ax,bx   		          ; get data
-			out  dx,ax		            ; write a byte to DSP
-			mov  ax,-1		            ; set successful flag
+	mov  dx,[DSP_DATA]	  	  ; DSP data reg
+	mov  ax,bx   		          ; get data
+	out  dx,ax		            ; write a byte to DSP
+	mov  ax,-1		            ; set successful flag
 
 @@seterr:
-			pop  cx
-			ret
-ENDP
+	pop  cx
+	ret
+sendDSP_time ENDP
 
 ;----------------------------------------------------------------------
 ;  Procedure: putmem16(UINT memaddr, UINT val)
@@ -9368,18 +9215,18 @@ ENDP
 ;  Remarks:
 ;
 ;----------------------------------------------------------------------
-proc putmem16 near
-			mov  bx,ax
-			mov  cx,dx
-			mov  dx,[DSP_DMADDR]     ; DSP RAM location reg
-			mov  ax,cx	             ; get offset
-			out  dx,ax		           ; set locatation
-			inc  dx
-			inc  dx			             ; DSP RAM data reg
-			mov  ax,bx		           ; get data
-			out  dx,ax		           ; write data
-			ret
-ENDP
+putmem16 proc near
+	mov  bx,ax
+	mov  cx,dx
+	mov  dx,[DSP_DMADDR]     ; DSP RAM location reg
+	mov  ax,cx	             ; get offset
+	out  dx,ax		           ; set locatation
+	inc  dx
+	inc  dx			             ; DSP RAM data reg
+	mov  ax,bx		           ; get data
+	out  dx,ax		           ; write data
+	ret
+putmem16 ENDP
 
 ;----------------------------------------------------------------------
 ;  Procedure: getmem16(UINT memaddr)
@@ -9396,15 +9243,15 @@ ENDP
 ;  Remarks:
 ;
 ;----------------------------------------------------------------------
-proc getmem16 near
-			mov  ax,dx
-			mov  dx,[DSP_DMADDR] ; DSP RAM location reg
-			out  dx,ax		       ; set locatation
-			inc  dx
-			inc  dx			         ; DSP RAM data reg
-			in   ax,dx		       ; get data
-			ret
-ENDP
+getmem16 proc near
+	mov  ax,dx
+	mov  dx,[DSP_DMADDR] ; DSP RAM location reg
+	out  dx,ax		       ; set locatation
+	inc  dx
+	inc  dx			         ; DSP RAM data reg
+	in   ax,dx		       ; get data
+	ret
+getmem16 ENDP
 
 ;****************************************************************************
 ;  Procedure: halt_DMA(UINT WaitOpt)
@@ -9422,200 +9269,200 @@ ENDP
 ;             channel.
 ;
 ;----------------------------------------------------------------------
-proc halt_DMA near
-			cmp  [PlayingSound],0
-			je   short @@nohalt
-			push ax
-			cli
-			mov  ax,12h
-			call sendDSP_time   ; stop audio playback
-			mov  ax,0
-			call sendDSP_time   ; channel
-			mov  ax,-1
-			call sendDSP_time   ; terminator
-			sti
+halt_DMA proc near
+	cmp  [PlayingSound],0
+	je   short @@nohalt
+	push ax
+	cli
+	mov  ax,12h
+	call sendDSP_time   ; stop audio playback
+	mov  ax,0
+	call sendDSP_time   ; channel
+	mov  ax,-1
+	call sendDSP_time   ; terminator
+	sti
 
-			pop  ax
+	pop  ax
 @@nohalt:
-			or   ax,ax          ;optional wait to absorb dummy IRQ
-			je   short @@exit
-			cmp  [iv_status],0
-			jne  short @@exit
+	or   ax,ax          ;optional wait to absorb dummy IRQ
+	je   short @@exit
+	cmp  [iv_status],0
+	jne  short @@exit
 
-			lea  ax,[IRQ_test]  ;enable EOD interrupts from DSP
-			call IRQ_set_vect
-			mov  ax,10
-			call sysex_wait     ;(140 milliseconds)
-			call IRQ_rest_vect
+	xlea  	ax,IRQ_test  ;enable EOD interrupts from DSP
+	call 	IRQ_set_vect
+	mov  	ax,10
+	call 	sysex_wait     ;(140 milliseconds)
+	call 	IRQ_rest_vect
 
 @@exit:
-			ret
-ENDP
+	ret
+halt_DMA ENDP
 
-proc IRQ_set_vect near     ;Install DMA IRQ handler
-			push si
-			push di
-			cli
+IRQ_set_vect proc near     ;Install DMA IRQ handler
+	push si
+	push di
+	cli
 
-			cmp  [iv_status],0         ;avoid redundant settings
-			jne  short @@exit
+	cmp  [iv_status],0         ;avoid redundant settings
+	jne  short @@exit
 
-			mov  bx,[DSP_IRQ]          ;index interrupt vector for IRQ
-			cmp  bx,8
-			jb   short @@calc_vect
-			add  bx,60h                ;index slave PIC vectors if IRQ > 7
+	mov  bx,[DSP_IRQ]          ;index interrupt vector for IRQ
+	cmp  bx,8
+	jb   short @@calc_vect
+	add  bx,60h                ;index slave PIC vectors if IRQ > 7
 @@calc_vect:
-			add  bx,8                  ;add in common offset
-			shl  bx,1
-			shl  bx,1
+	add  bx,8                  ;add in common offset
+	shl  bx,1
+	shl  bx,1
 
-			push ds
-			xor  dx,dx
-			mov  ds,dx
-			les  di,[bx]
-			mov  [cs:old_IRQ_s],es
-			mov  [cs:old_IRQ_o],di
-			mov  [bx],ax
-			mov  [bx+2],cs
-			pop  ds
-						   ; enable hardware interrupts for DSP
-			mov  cx,[DSP_IRQ]          ; get irq number
-			mov  bx,1
-			shl  bx,cl
-			cmp  cx,8
-			jb   short @@sd1
-			or   bx,4                  ; have to reinit PIC 0's daisy chain flag
+	push ds
+	xor  dx,dx
+	mov  ds,dx
+	les  di,[bx]
+	mov  [cs:old_IRQ_s],es
+	mov  [cs:old_IRQ_o],di
+	mov  [bx],ax
+	mov  [bx+2],cs
+	pop  ds
+				   ; enable hardware interrupts for DSP
+	mov  cx,[DSP_IRQ]          ; get irq number
+	mov  bx,1
+	shl  bx,cl
+	cmp  cx,8
+	jb   short @@sd1
+	or   bx,4                  ; have to reinit PIC 0's daisy chain flag
 @@sd1:
-			not  bx
-			in   al,0a1h
-			mov  [PIC1_val],al
-			and  al,bh
-			out  0a1h,al
-			in   al,21h
-			mov  [PIC0_val],al
-			and  al,bl
-			out  21h,al
+	not  bx
+	in   al,0a1h
+	mov  [PIC1_val],al
+	and  al,bh
+	out  0a1h,al
+	in   al,21h
+	mov  [PIC0_val],al
+	and  al,bl
+	out  21h,al
 
-			mov  [iv_status],1
+	mov  [iv_status],1
 
 @@exit:
-			pop  di
-			pop  si
-			sti
-			ret
-ENDP
+	pop  di
+	pop  si
+	sti
+	ret
+IRQ_set_vect ENDP
 
-proc IRQ_rest_vect near
+IRQ_rest_vect proc near
 
-			push si
-			push di
-			push ds
-			cli
+	push si
+	push di
+	push ds
+	cli
 
-			cmp  [iv_status],1         ;avoid redundant settings
-			jne  short @@exit
+	cmp  [iv_status],1         ;avoid redundant settings
+	jne  short @@exit
 
-			mov  cx,[DSP_IRQ]          ;stop hardware interrupts from DSP
-			mov  bx,1
-			shl  bx,cl
-			in   al,0a1h
-			or   al,bh
-			and  al,[PIC1_val]         ;don't kill any interrupts that were
-			out  0a1h,al               ;initially active
-			in   al,21h
-			or   al,bl
-			and  al,[PIC0_val]
-			out  21h,al
+	mov  cx,[DSP_IRQ]          ;stop hardware interrupts from DSP
+	mov  bx,1
+	shl  bx,cl
+	in   al,0a1h
+	or   al,bh
+	and  al,[PIC1_val]         ;don't kill any interrupts that were
+	out  0a1h,al               ;initially active
+	in   al,21h
+	or   al,bl
+	and  al,[PIC0_val]
+	out  21h,al
 
-			mov  bx,[DSP_IRQ]          ;index interrupt vector for IRQ
-			cmp  bx,8
-			jb   short @@calc_vect
-			add  bx,62h                ;index slave PIC vectors if IRQ > 7
-			jmp  short @@calc_vec1
+	mov  bx,[DSP_IRQ]          ;index interrupt vector for IRQ
+	cmp  bx,8
+	jb   short @@calc_vect
+	add  bx,62h                ;index slave PIC vectors if IRQ > 7
+	jmp  short @@calc_vec1
 @@calc_vect:
-			add  bx,8
+	add  bx,8
 @@calc_vec1:
-			shl  bx,1
-			shl  bx,1
+	shl  bx,1
+	shl  bx,1
 
-			xor  ax,ax
-			mov  ds,ax
-			mov  ax,[cs:old_IRQ_o]
-			mov  dx,[cs:old_IRQ_s]
-			mov  [bx],ax
-			mov  [bx+2],dx
+	xor  ax,ax
+	mov  ds,ax
+	mov  ax,[cs:old_IRQ_o]
+	mov  dx,[cs:old_IRQ_s]
+	mov  [bx],ax
+	mov  [bx+2],dx
 
-			mov  [cs:iv_status],0
+	mov  [cs:iv_status],0
 
 @@exit:
-			pop  ds
-			pop  di
-			pop  si
-			sti
-			ret
-ENDP
+	pop  ds
+	pop  di
+	pop  si
+	sti
+	ret
+IRQ_rest_vect ENDP
 
-proc IRQ_test far                 ;DMA IRQ handler for IRQ detection
-			sti
-			push ax
-			mov  [cs:IRQ_confirm],1     ;flag interrupt received OK
-			mov  al,20h                 ;send EOI to PIC
-			cmp  [cs:DSP_IRQ],8         ;clear PIC1 if IRQ >= 8
-			jb   short @@master
-			out  0a0h,al
+IRQ_test proc far                 ;DMA IRQ handler for IRQ detection
+	sti
+	push ax
+	mov  [cs:IRQ_confirm],1     ;flag interrupt received OK
+	mov  al,20h                 ;send EOI to PIC
+	cmp  [cs:DSP_IRQ],8         ;clear PIC1 if IRQ >= 8
+	jb   short @@master
+	out  0a0h,al
 @@master:
-			out  20h,al
-			pop  ax
-			iret
-ENDP
+	out  20h,al
+	pop  ax
+	iret
+IRQ_test ENDP
 
-proc sysex_wait near           ;Machine-independent delay
-			push cx
-			push ds
-			mov  dx,40h              ;wait n VBL periods (14 ms/period min,
-			mov  ds,dx               ;requires CGA/EGA/VGA/XGA video)
-			mov  dx,[63h]            ;get CRTC Address register location
-			add  dl,6                ;get CRTC Status register location
-			mov  cx,ax
-			jcxz short @@exit
+sysex_wait proc near           ;Machine-independent delay
+	push cx
+	push ds
+	mov  dx,40h              ;wait n VBL periods (14 ms/period min,
+	mov  ds,dx               ;requires CGA/EGA/VGA/XGA video)
+	mov  dx,ds:[63h]            ;get CRTC Address register location
+	add  dl,6                ;get CRTC Status register location
+	mov  cx,ax
+	jcxz short @@exit
 @@sync_1:
-			in   al,dx
-			test al,8
-			jz   @@sync_1
+	in   al,dx
+	test al,8
+	jz   @@sync_1
 @@sync_2:
-			in   al,dx
-			test al,8
-			jnz  @@sync_2
-			loop @@sync_1
+	in   al,dx
+	test al,8
+	jnz  @@sync_2
+	loop @@sync_1
 @@exit:
-			pop  ds
-			pop  cx
-			ret
-ENDP
+	pop  ds
+	pop  cx
+	ret
+sysex_wait ENDP
 
-proc shutdown_driver near
-			push cs
-			pop  ds
-			cmp  [init_OK],0
-			je   short @@exit
-			call stop_d_pb
-			mov  ax,1
-			call resetDSP_mode 		        ; reset DSP to Sound Blaster Emulation
-			mov  [init_OK],0
+shutdown_driver proc near
+	push cs
+	pop  ds
+	cmp  [init_OK],0
+	je   short @@exit
+	call stop_d_pb
+	mov  ax,1
+	call resetDSP_mode 		        ; reset DSP to Sound Blaster Emulation
+	mov  [init_OK],0
 @@exit:
-			ret
-ENDP
+	ret
+shutdown_driver ENDP
 
-proc stop_d_pb near
-			cmp  [PlayingSound],0
-			je   short @@exit
-			call IRQ_rest_vect
-			mov  ax,1
-			call halt_DMA
-			mov  [PlayingSound],0
+stop_d_pb proc near
+	cmp  [PlayingSound],0
+	je   short @@exit
+	call IRQ_rest_vect
+	mov  ax,1
+	call halt_DMA
+	mov  [PlayingSound],0
 @@exit:
-			ret
-ENDP
+	ret
+stop_d_pb ENDP
 
 ;----------------------------------------------------------------------
 ;  Procedure: resetDSP_mode(UINT inimode)
@@ -9648,58 +9495,58 @@ ENDP
 ;         the routine should be expanded.
 ;
 ;----------------------------------------------------------------------
-proc resetDSP_mode near           ;Returns AX=0 if failure
+resetDSP_mode proc near           ;Returns AX=0 if failure
 
-			mov  [inimode],ax
-			mov  ax,0c8h		    ; Aria mode, 22kHz, Intrp DSP
-			mov  dx,[DSP_CTRL_STAT]
-			out  dx,ax
+	mov  [inimode],ax
+	mov  ax,0c8h		    ; Aria mode, 22kHz, Intrp DSP
+	mov  dx,[DSP_CTRL_STAT]
+	out  dx,ax
 
-			mov  dx,6102h
-			xor  ax,ax
-			call putmem16 	    ; clear system initialization flag
-			cli
-			xor  ax,ax
-			call sendDSP_time   ; command id: system initialize
-			xor  ax,ax
-			call sendDSP_time   ; add a DSP task
-			mov  ax,[inimode]
-			call sendDSP_time   ; initialization mode
-			xor  ax,ax
-			call sendDSP_time   ; address
-			mov  ax,-1
-			call sendDSP_time   ; terminator
-			sti
-			or   ax,ax		      ; error occured?
-			jz   short @@exit		; yes,
+	mov  dx,6102h
+	xor  ax,ax
+	call putmem16 	    ; clear system initialization flag
+	cli
+	xor  ax,ax
+	call sendDSP_time   ; command id: system initialize
+	xor  ax,ax
+	call sendDSP_time   ; add a DSP task
+	mov  ax,[inimode]
+	call sendDSP_time   ; initialization mode
+	xor  ax,ax
+	call sendDSP_time   ; address
+	mov  ax,-1
+	call sendDSP_time   ; terminator
+	sti
+	or   ax,ax		      ; error occured?
+	jz   short @@exit		; yes,
 
-			mov  cx,5000		    ; wait for system init
+	mov  cx,5000		    ; wait for system init
 @@loopw:
-			push cx
-			mov  dx,6102h
-			call getmem16       ; get system initialization status
-			pop  cx
-			cmp  ax,1		        ; initialization done?
-			je   short @@set_mode	; yes, jmp
-			push cx
-			mov  ax,1
-			call sysex_wait     ; nope, wait a moment
-			pop  cx
-			loop @@loopw		    ; try again
-			xor  ax,ax   		    ; stop trying: set error code
-			jmp  short @@exit
+	push cx
+	mov  dx,6102h
+	call getmem16       ; get system initialization status
+	pop  cx
+	cmp_ax_n 1		        ; initialization done?
+	je   short @@set_mode	; yes, jmp
+	push cx
+	mov  ax,1
+	call sysex_wait     ; nope, wait a moment
+	pop  cx
+	loop @@loopw		    ; try again
+	xor  ax,ax   		    ; stop trying: set error code
+	jmp  short @@exit
 
 @@set_mode:
-			mov  dx,[DSP_CTRL_STAT] ; get control reg
-			mov  ax,40h		          ; assume Sound Blaster mode with 22kHz
-			cmp  [inimode],1        ; Sound Blaster?
-			jz   short @@setctrl
-			or   ax,08ah		        ; set Aria mode
+	mov  dx,[DSP_CTRL_STAT] ; get control reg
+	mov  ax,40h		          ; assume Sound Blaster mode with 22kHz
+	cmp  [inimode],1        ; Sound Blaster?
+	jz   short @@setctrl
+	or   ax,08ah		        ; set Aria mode
 @@setctrl:
-			out  dx,ax
+	out  dx,ax
 @@exit:
-			ret
-ENDP
+	ret
+resetDSP_mode ENDP
 
 ;----------------------------------------------------------------------
 ;  Procedure: GenerateInt(VOID)
@@ -9718,84 +9565,84 @@ ENDP
 ;  Remarks:
 ;
 ;----------------------------------------------------------------------
-proc generateint near			;Returns AX=0
-			cli
-			mov  ax,0ah
-			call sendDSP_time 	; generate PC interrup
-			mov  ax,-1
-			call sendDSP_time   ;terminator
-			sti
-			ret
-ENDP
+generateint proc near			;Returns AX=0
+	cli
+	mov  ax,0ah
+	call sendDSP_time 	; generate PC interrup
+	mov  ax,-1
+	call sendDSP_time   ;terminator
+	sti
+	ret
+generateint ENDP
 
-proc process_buffer near
-			mov  ax,[buff_freq]
-			call set_sample_rate
-			or   ax,ax
-			jz   short @@exit
+process_buffer proc near
+	mov  ax,[buff_freq]
+	call set_sample_rate
+	or   ax,ax
+	jz   short @@exit
 
-			lea  ax,[IRQ_play_buffer]  ;enable EOD interrupts from DSP
-			call IRQ_set_vect
+	xlea  ax,IRQ_play_buffer  ;enable EOD interrupts from DSP
+	call IRQ_set_vect
 
-			mov  ax,[buff_data_o]
-			mov  dx,[buff_data_s]
-			mov  bx,[buff_len_l]
-			mov  [word DMA_ptr],ax
-			mov  [word DMA_ptr+2],dx
-			mov  [DMA_len_l],bx
-			cli
-			mov  ax,6
-			call sendDSP_time		; select playback mode
-			mov  ax,2
-			call sendDSP_time		; mode 2, digital playback
-			mov  ax,-1
-			call sendDSP_time 	; terminator
+	mov  ax,[buff_data_o]
+	mov  dx,[buff_data_s]
+	mov  bx,[buff_len_l]
+	mov  [word ptr DMA_ptr],ax
+	mov  [word ptr DMA_ptr+2],dx
+	mov  [DMA_len_l],bx
+	cli
+	mov  ax,6
+	call sendDSP_time		; select playback mode
+	mov  ax,2
+	call sendDSP_time		; mode 2, digital playback
+	mov  ax,-1
+	call sendDSP_time 	; terminator
 
-			mov  ax,11h
-			call sendDSP_time		; start digital playback
-			mov  ax,0
-			call sendDSP_time 	; channel 0
-			mov  ax,-1
-			call sendDSP_time 	; terminator
-			sti
+	mov  ax,11h
+	call sendDSP_time		; start digital playback
+	mov  ax,0
+	call sendDSP_time 	; channel 0
+	mov  ax,-1
+	call sendDSP_time 	; terminator
+	sti
 
 @@exit:
-			ret
-ENDP
+	ret
+process_buffer ENDP
 
-Proc	PlaySound	near
+PlaySound Proc	near
 ;; CX ->number of bytes in sound sample.
 ;; ES:BX -> far address of sound sample to be played.
 ;; DX ->rate to play at.
-			PushCREGS
-			push cs
-			pop  ds
+	PushCREGS
+	push cs
+	pop  ds
 
-			mov  [buff_len_l],cx
-			mov  [buff_freq],dx
-			mov  [buff_data_o],bx
-			mov  [buff_data_s],es
-			cmp  [PlayingSound],0
-			jne  short @@exit
-			call process_buffer
+	mov  [buff_len_l],cx
+	mov  [buff_freq],dx
+	mov  [buff_data_o],bx
+	mov  [buff_data_s],es
+	cmp  [PlayingSound],0
+	jne  short @@exit
+	call process_buffer
 @@exit:
-		PopCREGS
-		ret
-endp
+	PopCREGS
+	ret
+PlaySound endp
 
-Proc	StopSound	near
-			cmp  [cs:PlayingSound],0
-			je   short @@exit
-			PushCREGS
+StopSound Proc	near
+	cmp  [cs:PlayingSound],0
+	je   short @@exit
+	PushCREGS
 
-			push cs
-			pop  ds
-			call stop_d_pb
-			mov  [PlayingSound],0
-			PopCREGS
+	push cs
+	pop  ds
+	call stop_d_pb
+	mov  [PlayingSound],0
+	PopCREGS
 @@exit:
-			ret
-endp
+	ret
+StopSound endp
 
 
 ENDIF
@@ -9804,7 +9651,7 @@ ENDIF
 ;;   At EACH vector to INT 66h,
 IF	DEBUGGING
 
-Macro	GetKey
+GetKey	Macro
 	LOCAL	@@RET
         mov     ah,07h
         int     21h
@@ -9818,7 +9665,7 @@ Macro	GetKey
 @@RET:
 	endm
 
-Macro   Nibble
+Nibble	Macro
 	LOCAL	@@OK
 	push	eax
 	and	eax,0Fh
@@ -9827,13 +9674,13 @@ Macro   Nibble
 	jle	@@OK
 	sub	eax,'9'+1
 	add	eax,'A'
-@@OK:	mov	[es:di],al
+@@OK:	mov	es:[di],al
 	sub	di,2
 	pop	eax
 	shr	eax,4		 ; down one nibble
 	endm
 
-Macro	HEXPRINT2      reg,xloc,yloc
+HEXPRINT2 Macro	reg,xloc,yloc
 	push	es
 	pusha
 	mov	eax,reg
@@ -9890,7 +9737,7 @@ MSGFUNCT19 db	"AX=6A0h Set 32 bit mode  "
 
 MSGCHAIN   db	"AX=OTHR Chaining interupt"
 
-Proc	DebugLine	near
+DebugLine Proc	near
 	push	es	; Preserve all registers
 	push	ds
 	pusha
@@ -9902,7 +9749,7 @@ Proc	DebugLine	near
 	sub	ax,688h
 	mov	bx,SIZE MSGFUNCT1
 	mul	bx
-	lea	si,[MSGFUNCT1]
+	xlea	si,MSGFUNCT1
 	add	si,ax
 	jmp short @@RENT
 @@CHAIN:lea	si,[MSGCHAIN]
@@ -9919,7 +9766,7 @@ Proc	DebugLine	near
 	add	di,160
 	mov	cx,size MSGFUNCT1
 	mov	al,' '
-@@ZERO: mov	[es:di],al
+@@ZERO: mov	es:[di],al
 	add	di,2
 	loop	@@ZERO
 	pop	di
@@ -9939,7 +9786,7 @@ Proc	DebugLine	near
 	pop	ds
 	pop	es
 	ret
-	endp
+DebugLine endp
 
 R_EAX	dd	?
 R_EBX	dd	?
@@ -9952,7 +9799,7 @@ R_EDI	dd	?
 ;;		 0123456789012345678901234567890123456789
 MSGDBUG db	"EAX=00000000 EBX=00000000 ECX=00000000"
 
-Proc	DeburstLine	near
+DeburstLine Proc	near
 	push	ds
 	push	es
 	pusha
@@ -9972,7 +9819,7 @@ Proc	DeburstLine	near
 	mul	[LINENO]
 	add	ax,80
 	mov	di,ax		; Into DI
-	lea	si,[MSGDBUG]
+	xlea	si,MSGDBUG
 	mov	cx,size MSGDBUG
 @@GO:	movsb
 	inc	di
@@ -9989,14 +9836,12 @@ Proc	DeburstLine	near
 	pop	es
 	pop	ds
 	ret
-	endp
-
-
+DeburstLine endp
 
 ENDIF
 
 
-LABEL	SUICIDE byte		;; Where to delete ourselves from memory
+SUICIDE LABEL	byte		;; Where to delete ourselves from memory
 IF	DIG_ADLIB
 hard	db	'$'
 msg0	db	"Adlib DIGPAK Sound Driver"
@@ -10114,13 +9959,13 @@ hard	db	'$'
 msg0	db	"Tandy 2500 XL DIGPAK Driver"
 ENDIF
 IF DIG_ARIA
-hard db   "Aria card not detected.",13,10,'$'
-msg0 db   "Aria, Sierra Semiconductor"
+hard 	db   "Aria card not detected.",13,10,'$'
+msg0 	db   "Aria, Sierra Semiconductor"
 ENDIF
 	db	" - Copyright (c) 1993, THE Audio Solution:v3.40",13,10,'$'
 msg1	db	"DIGPAK Sound Driver is already resident.",13,10,'$'
-msg1a	 db	 "DIGPAK Sound Driver is resident, through MIDPAK.",13,10,'$'
-msg1b	 db	 "A Sound Driver cannot be loaded on top of MIDPAK.  Unload MIDPAK first.",13,10,'$'
+msg1a	db	 "DIGPAK Sound Driver is resident, through MIDPAK.",13,10,'$'
+msg1b	db	 "A Sound Driver cannot be loaded on top of MIDPAK.  Unload MIDPAK first.",13,10,'$'
 msg2	db	"Unable to install Sound Driver interupt vector",13,10,'$'
 msg3    db      "Invalid command line",13,10,'$'
 msg4	db	"Sound Driver isn't in memory",13,10,'$'
@@ -10128,7 +9973,8 @@ msg5	db	"DIGPAK Sound Driver unloaded",13,10,'$'
 msg5a	db	"Sound Driver can't be unloaded, unload MIDPAK first.",13,10,'$'
 param   dw      4 dup(?)        ;; Used for parameter passing.
 Installed	dw	0
-Proc	LoadSound near
+
+LoadSound Proc	near
 	mov	ax,cs			;;
 	mov	ds,ax			;; establish data segment
 IF	ISEXE
@@ -10151,14 +9997,14 @@ ENDIF
 	je	ULOAD
 @@BC:
 	Message msg3			;; Invalid command line
-				DOSTerminate
+	DOSTerminate
 
 ULOAD:	mov	ax,[Installed]
 	or	ax,ax
 	jnz	DOU
 	Message msg4			;; wasn't loaded.
 	DOSTerminate			;; Terminate with message.
-DOU:	cmp	ax,2
+DOU:	cmp_ax_n 2
 	jne	@@OKU
 	Message msg5a
 	DOSTerminate
@@ -10169,11 +10015,11 @@ DOU:	cmp	ax,2
 
 NoArg:	or	ax,ax			;; Already loaded?
 	jz	@@DOLO			;; no->load it.
-	cmp	ax,2
+	cmp_ax_n 2
 	jne	@@TEMP
 	Message msg1a
 	DOSTerminate
-@@TEMP: cmp	ax,3
+@@TEMP: cmp_ax_n 3
 	jne	@@TEMPA
 	jmp short @@DOLO
 	Message msg1b
@@ -10194,10 +10040,10 @@ IF	FOREGROUND
 	call	LoopCX
 ENDIF
 	Message msg0
-				DosTSR  SUICIDE         ;; Terminate ourselves bud.
-	endp
+	DosTSR  SUICIDE         ;; Terminate ourselves bud.
+LoadSound endp
 
-Proc	InstallInterupt 	far
+InstallInterupt Proc far
 	IN_TSR
 
 	call	HardwareInit	;; Initialize hardware.
@@ -10208,15 +10054,15 @@ Proc	InstallInterupt 	far
 	mov	[param+2],offset SoundInterupt ;; offset of interupt routine
 	mov	[param+4],cs		;; Our code segment.
 	PushEA	param			;; push the address of the parameter list
-	call	InstallInt		;; Install the interupt.
+	call	InstallINT		;; Install the interupt.
 	add	sp,2			;; clean up stack
 @@OUT:
 
 	OUT_TSR
 	ret
-	endp
+InstallInterupt endp
 
-Proc	DeInstallInterupt	far
+DeInstallInterupt Proc	far
 	IN_TSR
 	mov	[param],KINT		;; Interupt requested to be unloaded.
 	PushEA	param			;; pass parameter.
@@ -10224,24 +10070,24 @@ Proc	DeInstallInterupt	far
 	add	sp,2			;; clean up stack
 	OUT_TSR
 	ret
-	endp
+DeInstallInterupt endp
 
 
-Proc	CheckIn near
+CheckIn Proc	near
 	push	ds		; Save ds register.
 	push	si
 
 	mov	si,66h*4h	; get vector number
         xor     ax,ax           ; zero
         mov     ds,ax           ; point it there
-	lds	si,[ds:si]	; get address of interupt vector
+	lds	si,ds:[si]	; get address of interupt vector
         or      si,si           ; zero?
-				jz      @@CIOUT         ; exit if zero
+	jz      @@CIOUT         ; exit if zero
         sub     si,6            ; point back to identifier
 
-	cmp	[word si],'IM'  ; Midi driver?
+	cmp	word ptr [si],'IM'  ; Midi driver?
 	jne	@@NEX
-	cmp	[word si+2],'ID'  ; full midi driver identity string?
+	cmp	word ptr [si+2],'ID'  ; full midi driver identity string?
 	jne	@@NEX
 
 ;; Ok, a MIDI driver is loaded at this address.
@@ -10255,62 +10101,57 @@ Proc	CheckIn near
 	mov	ax,2		; Sound driver resident, through MIDPAK.
 	jmp short @@EXT
 @@NEX:
-	cmp	[word si],454Bh ; equal?
-				jne     @@CIOUT         ; exit if not equal
-	cmp	[word si+2],4E52h    ; equal?
+	cmp	word ptr [si],454Bh ; equal?
+	jne     @@CIOUT         ; exit if not equal
+	cmp	word ptr [si+2],4E52h    ; equal?
         jne     @@CIOUT
-@@OK:	mov	ax,1
+     	mov	ax,1
 @@EXT:
 	pop	si
 	pop	ds
 	ret
 @@CIOUT: xor	ax,ax		; Zero return code.
 	jmp short @@EXT
-	endp
+CheckIn endp
 
 
 
-Proc	InstallINT near
-	ARG	DATA:WORD
+InstallINT CPROC MYDATA:WORD
 ;; Usage: IntallINT(&parms)
 ;; offset 0: interupt
 ;;        2: offset of interupt code
 ;;        4: segment of interupt code
-	PENTER	0
 	PushCREGS
 
-	mov	bx,[DATA]	; Get address of parameter table
+	mov	bx,[MYDATA]	; Get address of parameter table
         mov     ax,[bx]         ; get the interupt vector.
         mov     di,ax           ; save interupt vector into DI as well
         mov     si,[bx+2]       ; get offset
         mov     ds,[bx+4]       ; get segment.
         mov     ah,35h          ; Get interupt vector
-				int     21h             ; Do DOS call to get vector.
-	mov	[ds:si-10],bx	; Save the old offset.
-	mov	[ds:si-8],es	; Save the old segment
+	int     21h             ; Do DOS call to get vector.
+	mov	ds:[si-10],bx	; Save the old offset.
+	mov	ds:[si-8],es	; Save the old segment
         cld
         xor     ax,ax
         mov     es,ax
 	ShiftL	di,2		;
-				mov     ax,si           ; get offset.
+	mov     ax,si           ; get offset.
         cli
         stosw
         mov     ax,ds           ; code segment
-				stosw                   ; store it.
+	stosw                   ; store it.
         sti
-				xor     ax,ax           ; Success
+	xor     ax,ax           ; Success
 
 	PopCREGS
-	PLEAVE
 	ret
-	endp
+InstallINT endp
 
-Proc	UnLoad near
-	ARG	DATA:WORD
+UnLoad 	CPROC MYDATA:WORD
 ;; Usage: UnLoad(&vector)
 ;; Returns: AX = 0 success
 ;           AX nonzero, couldn't unload interupt vector.
-	PENTER	0
 	PushCREGS
 
 	mov	ax,68Fh ; Stop sound playback!
@@ -10319,21 +10160,21 @@ Proc	UnLoad near
 	mov	ax,692h ; Deinstall hardware vectors.
 	int	KINT
 
-	mov	bx,[DATA]	; get address of interupt vector
+	mov	bx,[MYDATA]	; get address of interupt vector
 				mov     bx,[bx]         ; get the interupt vector.
         mov     dx,bx           ; put it into DX as well
 	ShiftL	bx,2		;
         xor     ax,ax
         mov     ds,ax           ; Segment zero
-	lds	si,[ds:bx]	; get address of interupt vector
+	lds	si,ds:[bx]	; get address of interupt vector
 				or      si,si           ; zero?
 				jz      @@UOUT          ; exit if zero
-	cmp	[WORD ds:si-2],524Bh ;'KR' Is this a kernel installed interupt?
+	cmp	WORD ptr ds:[si-2],524Bh ;'KR' Is this a kernel installed interupt?
         push    ds              ; save DS
         mov     ax,dx           ; Get interupt vector.
 				mov     ah,25h          ; Do DOS 25h set interupt vector.
-	mov	dx,[ds:si-10]	 ; get old offset
-	mov	ds,[ds:si-8]	; get old segment
+	mov	dx,ds:[si-10]	 ; get old offset
+	mov	ds,ds:[si-8]	; get old segment
 				int     21h             ; set interupt vector.
         pop     ax              ; get back segment of program.
 IF	ISEXE
@@ -10341,77 +10182,77 @@ IF	ISEXE
 ENDIF
         mov     es,ax
 	push	es
-	mov	es,[es:2Ch]	; Environment space.
+	mov	es,word ptr es:[2Ch]	; Environment space.
 	mov	ah,49h
 	int	21h		; Free it up.
 	pop	es
         mov     ah,49h          ; free memory.
         int     21h             ; free up the memory used by us.
 
-@@EXIT: PopCREGS
-	PLEAVE
+@@: 	PopCREGS
         ret
 @@UOUT: mov     ax,1
-        jmp short @@EXIT
-	endp
+        jmp short @B
+UnLoad 	endp
 
 ;; This procedure parses the command line and builds an array of
 ;; pointers to each argument.  Arguments are seperated by space's.
 ;; these spaces get replaced by zero bytes.
-_argc	 dw	 0	 ; The argument count
+_argc	dw	 0	 ; The argument count
 _argv	dw	16 dup(0) ; Up to 16 arguments.
 command db	128 dup(?)
-Proc	ParseCommandLine	near
+
+ParseCommandLine Proc	near
 	mov	[_argc],0
-	cmp	[byte es:80h],2
+	cmp	byte ptr es:[80h],2
 	jb	@@END
 	xor	cx,cx
-	mov	cl,[es:80h]	; Get length.
+	mov	cl,es:[80h]	; Get length.
 	SwapSegs
 	dec	cx		; Less one
-	lea	di,[command]
+	xlea	di,command
 	mov	si,82h
 	rep	movsb
 	push	cs
 	pop	ds
-	lea	di,[_argv]	; Argument list.
-	lea	si,[command]	; Start address.
+	xlea	di,_argv	; Argument list.
+	xlea	si,command	; Start address.
 @@SET:	inc	[_argc] 	; Increment argument counter.
 	mov	ax,si		; Base argument addres.
 	stosw
 @@NEX:	lodsb			; Get characters until we hit space of eol
 	cmp	al,32
 	jne	@@NEX2
-	mov	[byte ds:si-1],0 ; Turn space into a zero byte.
+	mov	byte ptr ds:[si-1],0 ; Turn space into a zero byte.
 	jmp short @@SET
 @@NEX2:
 	cmp	al,13
 	je	@@END1
 	or	al,al
 	jnz	@@NEX		; Keep skipping to next arg.
-@@END1: mov	[byte ds:si-1],0	; Zero byte terminate last arg
+@@END1: mov	byte ptr ds:[si-1],0	; Zero byte terminate last arg
 @@END:
 	ret
-	endp
+ParseCommandLine endp
 
 ;;************************************************************************
 ;; Unique harware init code.
 ;;************************************************************************
-Proc	HardwareInit	near
+HardwareInit Proc	near
 	xor	ax,ax		;; success code by default.
 IF DIG_ARIA
-			call init_driver
-			or   ax,ax
-			jne  short @@ok
-			mov  ax,1
-			jmp  short @@done
+	call init_driver
+	or   ax,ax
+	jne  short @@ok
+	mov  ax,1
+	jmp  short @@done
 @@ok:
-			xor  ax,ax
+	xor  ax,ax
 @@done:
 ENDIF
 IF	DIG_ADLIBG
 	push	[IO_ADDR]	;; Default address.
-	call	_InitAdlibGold	;; Detect adlib gold sound card.
+	call	InitAdlibGold	;; Detect adlib gold sound card.
 	add	sp,2
 	cmp	[DSP_DMA],0	;; Invalid DMA?
 	je	@@NXT		;; return failure!!!!!!
@@ -10425,10 +10266,10 @@ ENDIF
 
 IF      DIG_MASTER
 	call	test_card
-	jnc	@@OK
+	jnc	@F
 	mov	ax,1			; Error.
 	jmp short @@ERR
-@@OK:	xor	ax,ax
+@@:	xor	ax,ax
 @@ERR:
 ENDIF
 IF	DIG_ADLIB
@@ -10446,7 +10287,7 @@ ELSE
 	xor	ax,ax
 	mov	ds,ax
 	mov	bx,[cs:BASELPT]
-	mov	ax,[ds:bx]		; Get address of LPT1
+	mov	ax,ds:[bx]		; Get address of LPT1
 	pop	ds
 	mov	[cs:PORTMOD+1],ax	; modify base address for LPT1 (Covox)
 	xor	ax,ax
@@ -10468,15 +10309,15 @@ CheckDigi:
 	xor	ax,ax
 	mov	es,ax		; Segment zero, interupt vectors.
 	mov	di,04Dh*4	; Address of interupt vector.
-	les	di,[es:di]	; Load far address.
+	les	di,es:[di]	; Load far address.
 	add	di,5		; Plus offset of 5.
-	lea	si,[Compare]
+	xlea	si,Compare
 	mov	cx,10
 	repz	cmpsb
-	jnz	@@NOT
+	jnz	@F
 	xor	ax,ax		; Found!
 	jmp short @@EXT
-@@NOT:	mov	ax,1		; ERROR, not found.
+@@:	mov	ax,1		; ERROR, not found.
 @@EXT:
 	pop	es
 ENDIF
@@ -10485,7 +10326,7 @@ ENDIF
 IF	DIG_TANSLTL
 ENDIF
 IF	DIG_SBLASTER
-	call	_InitBlaster		 ; Initialize sound blaster.
+	call	InitBlaster		 ; Initialize sound blaster.
 	jnc	@@OKS
 	mov	ax,1
 	jmp short @@NOKS
@@ -10497,10 +10338,10 @@ IF	DIG_SOURCE
 	xor	ax,ax
 	mov	ds,ax
 	mov	bx,[cs:BASELPT]
-	mov	ax,[ds:bx]		; Get address of LPT1
+	mov	ax,ds:[bx]		; Get address of LPT1
 	pop	ds
 	mov	[cs:PORTMOD+1],ax	; modify base address for LPT1 (Covox)
-    SourceOn
+    	SourceOn
 	xor	ax,ax
 ENDIF
 IF	DIG_ECHOII
@@ -10535,7 +10376,7 @@ IF	DIG_LANTSND
 	jz	@@NA		; Zero flag is Set, no voice installed.
 	jnc	@@DOL2
 @@NA:	mov	ax,1		; Return error condition.
-	jmp	@@EXIT
+	jmp	@@EXIT2
 @@DOL2:
 	mov	[VNUM],ah		;; Adaptor number?
 	mov	[LANADR.XPTR.PSEG],cx
@@ -10543,12 +10384,12 @@ IF	DIG_LANTSND
 
 	mov	[MY_VCB.VCB_command],VCB_CMD_RESET
 	mov	[MY_VCB.VCB_vca_num],0
-	lea	bx,[MY_VCB]
+	xlea	bx,MY_VCB
 	mov	ax,cs
 	mov	es,ax
 ;;	  call	  [LANADR.DPTR]
 	xor	ax,ax		; Installed
-@@EXIT:
+@@EXIT2:
 ENDIF
 IF	DIG_IBMBAK
 ENDIF
@@ -10571,7 +10412,7 @@ IF	DIG_PAUDIO
 @@EXT:
 ENDIF
 	ret
-	endp
+HardwareInit	endp
 
 IF	DIG_LANTSND
 ;
@@ -10595,58 +10436,58 @@ IF	DIG_LANTSND
 ;;    include "vpi.inc"
 
 
-Proc	check_MPX_install  near
+check_MPX_install Proc near
 
-    push ax				; MPX int may destroy any register
-    push dx
-    push si
-		push di
-    push bp
-    push ds
-    push es
+    	push ax				; MPX int may destroy any register
+    	push dx
+    	push si
+	push di
+    	push bp
+    	push ds
+    	push es
 
-    mov  al, MPX_installed_status	; MPX subfunction 00h
-		xor  bx, bx 			; Clear CX:BX to see if set by MPX
-		xor  cx, cx
-    int  MPX_interrupt			; Get installation status
-    test al, al 			; AL nonzero if MPX is installed
-    jnz  CMI_is_used
+    	mov  al, MPX_installed_status	; MPX subfunction 00h
+	xor  bx, bx 			; Clear CX:BX to see if set by MPX
+	xor  cx, cx
+    	int  MPX_interrupt			; Get installation status
+    	test al, al 			; AL nonzero if MPX is installed
+    	jnz  CMI_is_used
 
 CMI_nc_ret:
-    clc 				; MPX not in use
+    	clc 				; MPX not in use
 
 CMI_ret:
-    pop  es
-    pop  ds
-    pop  bp
-    pop  di
-    pop  si
-		pop  dx
-		pop  ax
+    	pop  es
+    	pop  ds
+    	pop  bp
+    	pop  di
+    	pop  si
+	pop  dx
+	pop  ax
 
-		ret
+	ret
 
 CMI_is_used:
-    mov  ax, bx
-    or	 ax, cx 			; CX:BX still 0, then not Voice MPX
-		jnz  CMI_maybe_voice
+    	mov  ax, bx
+    	or	 ax, cx 			; CX:BX still 0, then not Voice MPX
+	jnz  CMI_maybe_voice
 
 CMI_c_ret:
-    stc 				; Nonvoice MPX is installed here
-    jmp  CMI_ret
+    	stc 				; Nonvoice MPX is installed here
+    	jmp  CMI_ret
 
 CMI_maybe_voice:
-    mov  es, cx 			; ES:BX should be VCB handler
+    	mov  es, cx 			; ES:BX should be VCB handler
 
-    cmp  [WORD es:bx-4], 'PV'       ; Make sure preceding 4 = 'VPID'
-    jne  CMI_c_ret
-    cmp  [WORD es:bx-2], 'DI'
-		jne  CMI_c_ret
+    	cmp  WORD ptr es:[bx-4], 'PV'       ; Make sure preceding 4 = 'VPID'
+    	jne  CMI_c_ret
+    	cmp  WORD ptr es:[bx-2], 'DI'
+	jne  CMI_c_ret
 
-    or	 al,0ffh			; Clear the Z bit -- It's voice!!!
-    jmp  CMI_nc_ret
+    	or	 al,0ffh			; Clear the Z bit -- It's voice!!!
+    	jmp  CMI_nc_ret
 
-	ENDP
+check_MPX_install ENDP
 
 ;
 ;   check_all_MPXs
@@ -10682,165 +10523,164 @@ CMI_maybe_voice:
 FIRST_ELIGIBLE_MPX EQU	0C0h
 LAST_ELIGIBLE_MPX  EQU	0ffh
 
-Proc	check_all_MPXs	   NEAR
+check_all_MPXs Proc  NEAR
 
-    push dx
+   	push dx
 
-    mov  [cs:first_available_MPX], 0	  ; No MPXs found yet
-
-    mov  dh,ah				; Save preferred MPX number
+    	mov  [cs:first_available_MPX], 0	  ; No MPXs found yet
+	nop					;tasm compatibility
+    	mov  dh,ah				; Save preferred MPX number
 
 ; Begin testing each MPX from FIRST_ELIGIBLE_MPX to LAST_ELIGIBLE_MPX
 ;
 
-    mov  ah,FIRST_ELIGIBLE_MPX		; start at first possible one
+    	mov  ah,FIRST_ELIGIBLE_MPX		; start at first possible one
 
 CAMX_lp:
-    call check_MPX_install		; give this one a shot
-    jc	 CAMX_next			; in use by non-voice--try next one
-    jnz  CAMX_driver_found		; This one is the voice driver
-		cmp  [cs:first_available_MPX], 0	  ; If an available slot already found
-    jne  CAMX_next			;   then don't change it
-    mov  [cs:first_available_mpx], ah	  ; Otherwise, mark this as first avail
+    	call check_MPX_install		; give this one a shot
+    	jc	 CAMX_next			; in use by non-voice--try next one
+    	jnz  CAMX_driver_found		; This one is the voice driver
+	cmp  [cs:first_available_MPX], 0	  ; If an available slo	t already found
+    	jne  CAMX_next			;   then don't change it
+    	mov  [cs:first_available_MPX], ah	  ; Otherwise, mark this as first avail
 
 CAMX_next:
-    cmp  ah,LAST_ELIGIBLE_MPX
-		jae  CAMX_giveup
-    inc  ah				; Advance to next MPX number
-    jmp  CAMX_lp
+    	cmp  ah,LAST_ELIGIBLE_MPX
+	jae  CAMX_giveup
+    	inc  ah				; Advance to next MPX number
+    	jmp  CAMX_lp
 
 CAMX_giveup:
 
 ; No voice driver has yet been installed - check preferred one, if any,
 ;   for eligibility:
 ;
-    mov  ah, dh 			; AH = preferred MPX number
-    test ah, ah 			; 0 --> no preference
-		jz	 CAMX_no_preference
-    call check_MPX_install
-    jc	 CAMX_no_preference		; Preferred is already used -
+    	mov  ah, dh 			; AH = preferred MPX number
+    	test ah, ah 			; 0 --> no preference
+	jz   CAMX_no_preference
+    	call check_MPX_install
+    	jc   CAMX_no_preference		; Preferred is already used -
 					;   override
-    jnz  CAMX_driver_found		; preferred is already VOICE!
+    	jnz  CAMX_driver_found		; preferred is already VOICE!
 
 CAMX_new_number:
 
 ; An appropriate new number has been found. Set Z bit.
 ;
-    and  dh, 0				; Set Z bit (new MPX)
+    	and  dh, 0				; Set Z bit (new MPX)
 
 CAMX_nc_ret:
-		clc 				; No error
+	clc 				; No error
 
 CAMX_ret:
-    pop  dx
-
-		ret
+    	pop  dx
+	ret
 
 CAMX_driver_found:
 
 ; An already-installed voice driver has been found. The MPX # is in AH,
 ;   and the VCB handler address is in CX:BX
 ;
-		test ah, ah 			; Clear Z bit (existing MPX)
-		jmp  CAMX_nc_ret			; no error
+	test ah, ah 			; Clear Z bit (existing MPX)
+	jmp  CAMX_nc_ret			; no error
 
 CAMX_no_preference:
 
 ; No valid preferrred MPX number has been supplied. Give the
-;    first_available_mpx, if there is one
+;    first_available_MPX, if there is one
 ;
-		mov  ah,[cs:first_available_MPX]
-		test ah, ah
-		jnz  CAMX_new_number		; an available one was found
+	mov  ah,[cs:first_available_MPX]
+	test ah, ah
+	jnz  CAMX_new_number		; an available one was found
 
 ; No eligible MPX numbers are available. Return with Carry Set
 ;
-		stc
-		jmp  CAMX_ret
+	stc
+	jmp  CAMX_ret
+check_all_MPXs 	ENDP
 
 first_available_MPX DB	?
 
-	ENDP
 ENDIF
 
 IF DIG_ARIA
 
-proc init_driver near
+init_driver proc near
 
-			push cs
-			pop  ds
+	push cs
+	pop  ds
 ;
 ; reset status flags
 ;
-			mov  [iv_status],0		  ; no interrupt vector
-			mov  [old_freq],-1		  ; no playback
-			mov  [old_playmode],-1	; no stereo
-			mov  [PlayingSound],0
-			mov  [PENDING],0
+	mov  [iv_status],0		  ; no interrupt vector
+	mov  [old_freq],-1		  ; no playback
+	mov  [old_playmode],-1	; no stereo
+	mov  [PlayingSound],0
+	mov  [PENDING],0
 ;
 ; detect hardware setting
 ;
-			call detect_device
-			or   ax,ax
-			jz   short @@exit_init   ; verify device, establish addresses
+	call detect_device
+	or   ax,ax
+	jz   short @@exit_init   ; verify device, establish addresses
 ;
 ; set up volume and reset buffer & DAC status
-;
-			call set_volume		            ;
 
-			mov  [init_OK],1		          ; initialization is done
-			mov  ax,1		                  ; set sucessful flag
+	call set_volume		            ;
+
+	mov  [init_OK],1		          ; initialization is done
+	mov  ax,1		                  ; set sucessful flag
 @@exit_init:
-			ret
-ENDP
+	ret
+init_driver ENDP
 
-proc detect_device near   ;Check for presence of supported
+detect_device proc near   ;Check for presence of supported
 
-			mov [iv_status],0			  ; no interrupt
+	mov [iv_status],0			  ; no interrupt
 
-			mov ax,[ARIA_ADDR]			; get IO input
+	mov ax,[ARIA_ADDR]			; get IO input
 
-			mov [DSP_DATA],ax
-			add ax,2
-			mov [DSP_CTRL_STAT],ax
-			add ax,2
-			mov [DSP_DMADDR],ax
-			add ax,2
-			mov [DSP_DMADATA],ax
+	mov [DSP_DATA],ax
+	add_ax_n 2
+	mov [DSP_CTRL_STAT],ax
+	add_ax_n 2
+	mov [DSP_DMADDR],ax
+	add_ax_n 2
+	mov [DSP_DMADATA],ax
 
-			mov ax,[ARIA_IRQ]
-			mov [DSP_IRQ],ax
+	mov ax,[ARIA_IRQ]
+	mov [DSP_IRQ],ax
 
-			xor  ax,ax
-			call resetDSP_mode      ; initialize DSP with Aria mode
+	xor  	ax,ax
+	call 	resetDSP_mode      ; initialize DSP with Aria mode
 
-			or   ax,ax
-			jz   short @@exit       ;(reset failed)
+	or   	ax,ax
+	jz   	short @@exit       ;(reset failed)
 
-			mov  [IRQ_confirm],0    ;trigger EOD IRQ on selected line
-			mov  [PlayMode],PCM_8_MONO
+	mov  	[IRQ_confirm],0    ;trigger EOD IRQ on selected line
+	mov  	[PlayMode],PCM_8_MONO
 chkirq:
-			mov  si,1               ;assume success
-			mov  ax,22050
-			call set_sample_rate    ;set 22.050 kHz
-			lea  ax,[IRQ_test]      ;enable EOD interrupts from DSP
-			call IRQ_set_vect
-			call generateint
-			mov  di,34              ;wait typ. 500 milliseconds
+	mov  	si,1               ;assume success
+	mov  	ax,22050
+	call 	set_sample_rate    ;set 22.050 kHz
+	xlea  	ax,IRQ_test      ;enable EOD interrupts from DSP
+	call 	IRQ_set_vect
+	call 	generateint
+	mov  	di,34              ;wait typ. 500 milliseconds
 @@poll_confirm:
-			mov  ax,1
-			call sysex_wait
-			cmp  [IRQ_confirm],1      ;EOD interrupt occurred?
-			je   short @@end_IRQ_test ;yes, device IRQ valid
-			dec  di
-			jnz  @@poll_confirm
-			xor  si,si              ;IRQ handler never called -- failed
+	mov  ax,1
+	call sysex_wait
+	cmp  [IRQ_confirm],1      ;EOD interrupt occurred?
+	je   short @@end_IRQ_test ;yes, device IRQ valid
+	dec  di
+	jnz  @@poll_confirm
+	xor  si,si              ;IRQ handler never called -- failed
 @@end_IRQ_test:
-			call IRQ_rest_vect
-			mov  ax,si
+	call IRQ_rest_vect
+	mov  ax,si
 @@exit:
-			ret
-ENDP
+	ret
+detect_device ENDP
 
 ENDIF
 
@@ -10849,21 +10689,22 @@ IF	FOREGROUND
 ;;  100*constant = 0.0549 seconds.
 ;;  constant = 0.0549/100
 TimeAdr dw	06Ch,040h
-Proc	LoopCX	near
+
+LoopCX 	Proc	near
 	push	ds
 	push	si
 
 	xor	dx,dx		; Number of times.
-	lds	si,[cs:(dword TimeAdr)]
-	mov	ax,[ds:si]
-@@EDGE: cmp	ax,[ds:si]
+	lds	si,dword ptr cs:TimeAdr
+	mov	ax,ds:[si]
+@@EDGE: cmp	ax,ds:[si]
 	je	@@EDGE
 	inc	ax		;
 
 @@GO:	mov	cx,32
 @@GO2:	loop	@@GO2
 	inc	dx
-	cmp	ax,[ds:si]
+	cmp	ax,ds:[si]
 	je	@@GO
 
 	mov	ax,dx		; Time constant. for loop instruction.
@@ -10872,11 +10713,21 @@ Proc	LoopCX	near
 	pop	si
 	pop	ds
 	ret
-	endp
+LoopCX	endp
 ENDIF
 
+;	dummy procedure supplied
+IF	DIG_CVXSND OR DIG_VMSND OR DIG_SMSND OR DIG_BIGMOUTH
+IF	FOREGROUND
+IFNDEF	ReportDMAC	
+ReportDMAC	Proc near	
+	mov	ax, 0
+	ret
+ReportDMAC	endp
+ENDIF
+ENDIF
+ENDIF
 
-
-	ENDS
+_TEXT	ENDS
 	end	START
 
