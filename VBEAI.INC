@@ -255,34 +255,34 @@ WAVE16BITREC            equ     20h
 
             ;; housekeeping
 
-            wsname          db      4 dup(?)  ;; name of the structure
-            wslength        dd      ?         ;; structure length
+            wsname          db      4 dup(?)  ;; name of the structure		0	
+            wslength        dd      ?         ;; structure length               4
 
-            wsfuture        db      16 dup(?) ;; 16 bytes for future expansion
+            wsfuture        db      16 dup(?) ;; 16 bytes for future expansion  8
 
             ;; device driver supplied function
 
-            wsDeviceCheck   dd      ?         ;;
-            wsPCMInfo       dd      ?         ;;
-            wsPlayBlock     dd      ?         ;;
-            wsPlayCont      dd      ?         ;;
+            wsDeviceCheck   dd      ?         ;;                         	      18
+            wsPCMInfo       dd      ?         ;;                                1C
+            wsPlayBlock     dd      ?         ;;                                20
+            wsPlayCont      dd      ?         ;;                                24
+                                                                             	
+            wsRecordBlock   dd      ?         ;;                                28
+            wsRecordCont    dd      ?         ;;                                2C
+            wsPauseIO       dd      ?         ;;                                30
+            wsResumeIO      dd      ?         ;;                                34
 
-            wsRecordBlock   dd      ?         ;;
-            wsRecordCont    dd      ?         ;;
-            wsPauseIO       dd      ?         ;;
-            wsResumeIO      dd      ?         ;;
+            wsStopIO        dd      ?         ;;                                38
+            wsWavePrepare   dd      ?         ;;                                3C
+            wsWaveRegister  dd      ?         ;;                                40
 
-            wsStopIO        dd      ?         ;;
-            wsWavePrepare   dd      ?         ;;
-            wsWaveRegister  dd      ?         ;;
-
-            wsGetLastError  dd      ?         ;;
-            wsTimerTick     dd      ?         ;;
-
+            wsGetLastError  dd      ?         ;;                                44
+            wsTimerTick     dd      ?         ;;                                48
+                                                                                
             ;; device driver run-information time data
 
-            wsApplPSyncCB   dd      ?         ;; play filled in by the app
-            wsApplRSyncCB   dd      ?         ;; rec filled in by the app
+            wsApplPSyncCB   dd      ?         ;; play filled in by the app      4C
+            wsApplRSyncCB   dd      ?         ;; rec filled in by the app       50
 
         WAVEService ends
 
@@ -620,8 +620,8 @@ _AX     equ     <word ptr [bp+_regAX]>
 _AL     equ     <byte ptr [bp+_regAX]>
 _AH     equ     <byte ptr [bp+_regAX+1]>
 
-
-if @codesize
+      
+if @CodeSize
   @ret equ 4
   FFAR  equ     <far>
   if1
@@ -635,7 +635,7 @@ else
   endif
 endif
 
-if @datasize
+if @DataSize
   @ptr equ 4
   if1
     %out compiling LARGE data segments
