@@ -38,9 +38,7 @@
 ;[[                                                                        [[
 ;[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[
 
-                MODEL MEDIUM,C          ;Procedures far, data near by default
-                LOCALS __               ;Enable local labels with __ prefix
-                JUMPS                   ;Enable auto jump sizing
+                .MODEL TINY,C          ;Procedures far, data near by default
 
                 ;
                 ;Configuration equates
@@ -69,8 +67,8 @@ BRANCH_EXIT     equ TRUE                ;TRUE to allow branches out of loops
                 ;Macros, non-configurable equates
                 ;
 
-                INCLUDE ail.mac
-                INCLUDE ail.inc
+                INCLUDE AIL.MAC
+                INCLUDE AIL.INC
 
                 IFDEF SBSTD
 YM3812          equ 1

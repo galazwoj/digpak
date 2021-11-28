@@ -68,11 +68,15 @@ ADD_PTR         MACRO add_l,add_h,pseg,poff     ;add 32-bit dword to far ptr
 
 POP_F           MACRO                   ;avoid POPF bug on brain-dead 80286's
                 LOCAL intel_bytes
+IFDEF	BINARY_COMPATIBLE
                 db 80h                  ;make an OR BH,00 instruction
 intel_bytes:    iret
                 db 00h
                 push cs
                 call intel_bytes
+ELSE
+		POPF
+ENDIF	
                 ENDM
 
 REP_MOVSB       MACRO                   ;do REP MOVSB with 16-bit transfers
