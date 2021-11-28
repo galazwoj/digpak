@@ -1,0 +1,57 @@
+501c501,502
+< 86B1:0630  81 E1 FFF0				and	cx,0FFF0h
+---
+> 86B1:0630  83 E1 F0				and	cx,0FFF0h
+> 86B1:0633  90					nop
+514c515,516
+< 86B1:064F  81 E1 FFF0				and	cx,0FFF0h
+---
+> 86B1:064F  83 E1 F0				and	cx,0FFF0h
+> 86B1:0652  90					nop
+519c521
+< 86B1:065C  3A DA				cmp	bl,dl
+---
+> 86B1:065C  38 D3				cmp	bl,dl
+523c525,526
+< 86B1:0662  8B E5				mov	sp,bp
+---
+> 86B1:0662  90					nop
+> 86B1:0663  90					nop
+700c703
+< 86B1:0F5C  2D 004F				sub	ax,4Fh
+---
+> 86B1:0F5C  83 E8 4F				sub	ax,4Fh
+712c715
+< 86B1:0F76  2D 004F				sub	ax,4Fh
+---
+> 86B1:0F76  83 E8 4F				sub	ax,4Fh
+755c758
+< 86B1:0FC4  2D 004F				sub	ax,4Fh
+---
+> 86B1:0FC4  83 E8 4F				sub	ax,4Fh
+787c790
+< 86B1:0FFB  2D 004F				sub	ax,4Fh
+---
+> 86B1:0FFB  83 E8 4F				sub	ax,4Fh
+1482c1485
+< 86B1:1691  3D 0002				cmp	ax,2
+---
+> 86B1:1691  83 F8 02				cmp	ax,2
+1507c1510
+< 86B1:16B8  3D 0002				cmp	ax,2
+---
+> 86B1:16B8  83 F8 02				cmp	ax,2
+1519c1522
+< 86B1:16CA  3D 0003				cmp	ax,3
+---
+> 86B1:16CA  83 F8 03				cmp	ax,3
+1725c1728,1729
+< 86B1:17E5  8B E5				mov	sp,bp
+---
+> 86B1:17E5  90					nop
+> 86B1:17E6  90					nop
+1790c1794,1795
+< 86B1:1841  8B E5				mov	sp,bp
+---
+> 86B1:1841  90					nop
+> 86B1:1842  90					nop
