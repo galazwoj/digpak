@@ -1,0 +1,95 @@
+		291:                	INVOKE 	next_block         
+		292:                	INVOKE 	process_block, ADDR umss
+		312:			INVOKE	next_buffer
+		319:			INVOKE	process_buffer, cx, ADDR umss
+		387:__do_block:     	INVOKE 	block_type
+		406:__extended:     	INVOKE 	set_xblk
+		411:__skip_block:   	INVOKE 	next_block
+		417:                	INVOKE 	next_block
+		580:                	INVOKE 	stop_d_pb, H 
+		811:                	INVOKE 	stop_d_pb, H        ;else stop VOC file output first
+		858:                	INVOKE 	stop_d_pb, H   ;assert VOC mode
+		872:	        	INVOKE 	block_type 
+		875:                	INVOKE 	set_xblk
+		876:                	INVOKE 	marker_num         ;get marker # (or -1 if non-marker)
+		878:                	INVOKE	next_block
+		895:			INVOKE	next_buffer	     ;start dual-buffer playback
+		900:			INVOKE	process_buffer, si, ADDR umss
+		919:                	INVOKE	process_block, ADDR umss
+
+-------------------------------------------------------------------
+tasm:           call 	next_block         
+masm:          	INVOKE 	next_block         
+tasm /masm disasm
+		push	cs
+		call	near ptr next_block
+
+-------------------------------------------------------------------
+tasm:		call 	process_block C, OFFSET umss, cs
+masm:          	INVOKE	process_block, ADDR umss
+tasm disasm
+		push	cs
+		push	ax
+		push	bp
+		mov	bp, sp
+		mov	word ptr [bp+2], offset	umss
+		pop	bp
+		push	cs
+		call	near ptr process_block
+		add	sp, 4
+masm disasm
+		push	cs
+		lea	ax, umss
+		push	ax
+		push	cs
+		call	near ptr process_block
+		add	sp, 4
+
+-------------------------------------------------------------------
+tasm:		push	ax
+		call	process_buffer, ax, OFFSET umss, cs
+		pop	ax
+masm:		push	ax
+		push	cx
+		mov	cx, ax
+		INVOKE	process_buffer, cx, ADDR umss
+		pop	cx
+		pop	ax
+tasm disasm                                      	
+		push	ax				;save ax
+		push	cs                        	;push last parameter	
+		push	ax                          	;reserve stack	
+		push	bp                              ;
+		mov	bp, sp                      	;
+		mov	word ptr [bp+2], offset	umss    ;copy parameter to stack made by push ax
+		pop	bp                              ;
+		push	ax                           	;push first parameter
+		push	cs                    		;push procedure seg   
+		call	near ptr process_buffer         ;cnear call           
+		add	sp, 6                           ;clean up stack       
+		pop	ax                              ;restore ax           
+masm
+		push	ax
+		push	cx				;save cx
+		mov	cx, ax                 		;copy 1st parameter to cx
+		push	cs                    		;push last parameter
+		lea	ax, umss            	
+		push	ax                 		;push second from the last parameter
+		push	cx                		;push first parameter
+		push	cs                		;push procedure seg
+		call	near ptr process_buffer		;cnear call
+		add	sp, 6                         	;clean up stack
+		pop	cx              		;restore cx
+		pop	ax
+-------------------------------------------------------------------
+tasm: 		call 	stop_d_pb 
+masm:		INVOKE 	stop_d_pb, H 
+tasm disasm
+		push	cs                   
+		call	near ptr stop_d_pb   
+masm disasm
+		push	H
+		push	cs                   
+		call	near ptr stop_d_pb   
+		add	sp, 2	
+	

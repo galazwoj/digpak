@@ -47,10 +47,14 @@
 ;[[                                                                        [[
 ;[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[
 
-                MODEL MEDIUM,C          ;Procedures far, data near by default
-                LOCALS __               ;Enable local labels with __ prefix
-                JUMPS                   ;Enable auto jump sizing
+; Not binary compatible with tasm
+;   jumps generated differently
+;   invoke generates different code
+;   pop_f macro nonsense removed
+;   add, sp -x generated instead of sub sp, x
 
+                .MODEL TINY,C          ;Procedures far, data near by default
+		ASSUME CS:_TEXT, DS:NOTHING, ES:NOTHING, SS:NOTHING
                 ;
                 ;External/configuration equates
                 ;
@@ -84,15 +88,14 @@ DAC_BUFF_REGISTERED equ 4
                 ;
                 ;Macros, internal equates
                 ;
-
-                INCLUDE ail.mac
-                INCLUDE ail.inc
-		INCLUDE ultramid.inc
+                INCLUDE ALL.MAC
+                INCLUDE ALL.INC
+		INCLUDE ULTMIDI.INC
 
 VOC_MODE        equ 0                   ;Creative Voice File playback mode
 BUF_MODE        equ 1                   ;Dual-buffer DMA playback mode
 
-                .CODE	_TEXT
+                .CODE
 
                 dw OFFSET driver_index
                 db 'Copyright (C) 1991,1992 Miles Design, Inc.',01ah
@@ -154,7 +157,7 @@ st_mem		db 2*1024 dup (?)
 sbuffer         STRUC
 pack_type       dw ?
 sample_rate     dw ?
-data            dd ?
+mydata          dd ?
 len_l           dw ?
 len_h           dw ?
 sbuffer         ENDS
@@ -193,7 +196,7 @@ xblk_status     dw ?
 xblk_tc         db ?
 xblk_pack       db ?
 
-INCLUDE vol.inc
+		INCLUDE vol.inc
 
 umss	um_sound_struct <>		     ;UltraMID sound structure
 
@@ -202,60 +205,75 @@ chk_hook_str    db 'ULTRAMID',0              ;Stamp to find resident GF1 O.S.
 gf1hook     label   dword   		     ;GF1 hook for all UltraMID calls.
 hookoff     dw      0
 hookseg     dw      0
+		db 90h			     ;helps disassembling code 	
+CPROC 		equ	<PROC  FAR C >
+CPROTO 		equ	<PROTO FAR C >
+LPROC 		equ	<PROC  NEAR C PRIVATE>
+LPROTO 		equ	<PROTO NEAR C>
+
+block_type      LPROTO
+set_xblk        LPROTO
+marker_num      LPROTO
+um_callback	LPROTO reason:WORD,voice:WORD,buff:FAR PTR,bufflen:FAR PTR,bufrate:FAR PTR
+next_block      LPROTO
+process_block   LPROTO ssp:FAR PTR 
+next_buffer     LPROTO
+process_buffer  LPROTO Buf:WORD,ssp:FAR PTR 
+describe_driver CPROTO H:WORD 
+shutdown_driver CPROTO H:WORD, SignOff:FAR PTR
+set_d_pb_pan    CPROTO H:WORD, Pan:WORD
+get_d_pb_pan    CPROTO H:WORD        
+set_d_pb_vol    CPROTO H:WORD, Vol:WORD 
+get_d_pb_vol    CPROTO H:WORD          
+detect_device   CPROTO H:WORD,IO_ADDR:WORD,IRQ:WORD,DMA:WORD,DRQ:WORD
+init_driver     CPROTO H:WORD,IO_ADDR:WORD,IRQ:WORD,DMA:WORD,DRQ:WORD  
+index_VOC_blk   CPROTO H:WORD,File:FAR PTR,Block:WORD,SBuf:FAR PTR               
+register_sb     CPROTO H:WORD,BufNum:WORD,SBuf:FAR PTR
+get_sb_status   CPROTO H:WORD,HBuffer:WORD
+play_VOC_file   CPROTO H:WORD,File:FAR PTR,Block:WORD
+start_d_pb      CPROTO H:WORD
+stop_d_pb       CPROTO H:WORD
+pause_d_pb      CPROTO H:WORD
+cont_d_pb       CPROTO H:WORD
+get_VOC_status  CPROTO H:WORD
 
 ;****************************************************************************
-block_type      PROC                    ;Return AX=current block type
-                USES	ds,si,di
-
+block_type      LPROC 	USES DS SI DI       ;Return AX=current block type
                 lds	si,block_ptr
                 lodsb
                 mov 	ah,0
-
                 ret
-                ENDP
+block_type      ENDP
 
 ;****************************************************************************
-set_xblk        PROC                    ;Set extended .VOC block parms
-                USES	ds,si,di
-
+set_xblk        LPROC  	USES DS SI DI       ;Set extended .VOC block parms
                 lds 	si,block_ptr        
                 cmp 	BYTE PTR [si],8
                 jne 	__exit            ;(not an extended block)
-
                 mov 	al,[si+5]           ;get extended voice parameters
                 mov 	xblk_tc,al       ;high byte of TC = normal sample rate
-
                 mov 	ax,[si+6]           ;get pack (AL) and mode (AH)
                 cmp 	ah,1                ;stereo?
                 jne 	__set_pack
-
                 or 	al,80h               ;yes, make pack byte negative
-
 __set_pack:     mov 	xblk_pack,al
-
                 mov 	xblk_status,1       ;flag extended block override
-
 __exit:         ret
-                ENDP
+set_xblk        ENDP
 
 ;****************************************************************************
-marker_num      PROC                    ;Return AX=block's marker #
-                USES	ds,si,di
-
+marker_num      LPROC  	USES DS SI DI        ;Return AX=block's marker #
                 lds 	si,block_ptr
                 cmp 	BYTE PTR [si],4
                 mov 	ax,-1       
                 jne 	__exit              ;(not a marker block)
                 mov 	ax,[si+4]           ;return marker #
-
 __exit:         ret
-                ENDP
+marker_num      ENDP
 
 ;****************************************************************************
 ;double buffer callback from UltraMID
-um_callback	PROC C FAR,reason,voice,buff:FAR PTR,bufflen:FAR PTR,bufrate:FAR PTR
-                USES	ds,si,di
-                     
+um_callback	LPROC USES DS SI DI reason:WORD,voice:WORD,buff:FAR PTR,bufflen:FAR PTR,bufrate:FAR PTR
 		cmp	reason, UM_STOP_SOUND
 		je	__stop
 		cmp	reason, UM_MORE_DATA
@@ -268,8 +286,8 @@ __more_data:
 		jne	__db_mode
 		cmp	stop_voc_mode, 1
 		je	__exit
-                call 	next_block         
-                call 	process_block C, OFFSET umss, cs
+                INVOKE 	next_block         
+                INVOKE 	process_block, ADDR umss
 		cmp	ax, 0
 		jne	__send_next
 		mov	stop_voc_mode, 1
@@ -288,15 +306,17 @@ __send_next:
 		mov	word ptr es:[di], bx
 		mov	ax, 1
 		jmp	__keep_going
-
 __db_mode:
-		call	next_buffer
+		INVOKE	next_buffer
 		cmp	ax,-1
 		je	__exit
 		mov	si, ax
 		shl	si, 1
 		push	ax
-		call	process_buffer, ax, OFFSET umss, cs
+		push	cx
+		mov	cx, ax
+		INVOKE	process_buffer, cx, ADDR umss
+		pop	cx
 		pop	ax
 		mov	buff_status[si], DAC_BUFF_REGISTERED
 		cmp	db_playing, -1
@@ -346,32 +366,25 @@ __exit:
 		mov	ax, 0
 __keep_going:
                 ret
-                ENDP
+um_callback     ENDP
 
 ;****************************************************************************
-next_block      PROC                    ;Index next block in voice data
-                USES	ds,si,di
-
+next_block      LPROC 	USES DS SI DI	    ;Index next block in voice data
                 lds 	si,block_ptr
                 inc 	si                  ;skip block type
                 lodsw                   
                 mov 	dl,[si]
                 mov 	dh,0           ;blk len: AL=LSB, AH=KSB, DL=MSB, DH=0
                 inc 	si
-
                 ADD_PTR ax,dx,ds,si     ;point to next block
-
                 mov 	WORD PTR block_ptr,si
                 mov 	WORD PTR block_ptr+2,ds
-
                 ret
-                ENDP
+next_block      ENDP
 
 ;****************************************************************************
-process_block   PROC C,ssp:FAR PTR      ;Process current block in voice data
-                USES 	ds,di           ;(May be called from IRQ handler)
-
-__do_block:     call 	block_type
+process_block   LPROC USES DS DI ssp:FAR PTR      ;Process current block in voice data
+__do_block:     INVOKE 	block_type
                 cmp 	ax,0            ;terminator?
                 je 	__terminate
                 cmp 	ax,1            ;new voice block?
@@ -390,25 +403,22 @@ __do_block:     call 	block_type
                 je 	__extended
                 jmp 	__skip_block    ;else unrecognized block type, skip it
 
-__extended:     call 	set_xblk
+__extended:     INVOKE 	set_xblk
                 jmp 	__skip_block
-
 __terminate:    
 		mov	ax, 0
                 jmp 	__exit
-
-__skip_block:   call 	next_block
+__skip_block:   INVOKE 	next_block
                 jmp 	__do_block
 
 __rept_loop:    lds 	si,block_ptr
                 mov 	ax,[si+4]
                 mov 	loop_cnt,ax
-                call 	next_block
+                INVOKE 	next_block
                 lds 	si,block_ptr
                 mov 	WORD PTR loop_ptr,si
                 mov 	WORD PTR loop_ptr+2,ds
                 jmp 	__do_block
-
 __end_loop:     cmp 	loop_cnt,0
                 je 	__skip_block
                 lds 	si,loop_ptr
@@ -418,27 +428,24 @@ __end_loop:     cmp 	loop_cnt,0
                 je 	__do_block
                 dec 	loop_cnt
                 jmp 	__do_block
-
 __silence:
 ; We should implement a silence play back for timedelay and irq.
                 jmp 	__skip_block
-
 __cont_voice: 
 		les	di,[ssp]
 		mov	ax, current_rate
-		mov	es:[di].um_sample_rate,ax
+		mov	es:[di].um_sound_struct.um_sample_rate,ax
                 lds 	si,block_ptr     ;continue output from new voice block
                 mov 	ax,[si+1]
-		mov	word ptr es:[di].um_sound_len, ax
+		mov	word ptr es:[di].um_sound_struct.um_sound_len, ax
                 mov 	al,[si+3]
                 mov 	ah,0
-		mov	word ptr es:[di].um_sound_len+2, ax
+		mov	word ptr es:[di].um_sound_struct.um_sound_len+2, ax
                 ADD_PTR 4,0,ds,si       ;DS:SI -> start-of-data
-		mov	es:[di].um_sound_data_seg, ds
-		mov	es:[di].um_sound_data_off, si
+		mov	word ptr es:[di].um_sound_struct.um_sound_data+2, ds
+		mov	word ptr es:[di].um_sound_struct.um_sound_data,   si
 		mov	ax, 1
                 jmp 	__exit
-
 __new_voice:    lds 	si,block_ptr     ;initiate output from new voice block
 		les	di,[ssp]
                 mov 	bl,[si+4]
@@ -451,7 +458,6 @@ __new_voice:    lds 	si,block_ptr     ;initiate output from new voice block
                 mov 	al,xblk_pack
                 mov 	bl,xblk_tc
                 mov 	xblk_status,0
-
 __use_vd:       mov 	pack_byte,ax
                 mov 	packing,ax
                 and 	packing,7fh
@@ -463,7 +469,7 @@ __use_vd:       mov 	pack_byte,ax
 		jne	__stereo
 		jmp	short __data_type
 __stereo:	or	al, UM_STEREO
-__data_type:	mov	es:[di].um_data_type, al
+__data_type:	mov	es:[di].um_sound_struct.um_data_type, al
 		mov	bh, 0		; convert sb code to sample rate
 		mov	ax, 256
 		xchg	ax, bx
@@ -472,30 +478,25 @@ __data_type:	mov	es:[di].um_data_type, al
 		mov	ax,4240h
 		div	bx
                 mov 	current_rate,ax
-		mov	es:[di].um_sample_rate, ax
-
+		mov	es:[di].um_sound_struct.um_sample_rate, ax
 ; Now play block...
                 mov 	ax,[si+1]
                 mov 	dl,[si+3]
                 mov 	dh,0                
                 sub 	ax,2                
                 sbb 	dx,0            ;DX:AX = voice len
-		mov	word ptr es:[di].um_sound_len,ax
-		mov	word ptr es:[di].um_sound_len+2,dx
+		mov	word ptr es:[di].um_sound_struct.um_sound_len,ax
+		mov	word ptr es:[di].um_sound_struct.um_sound_len+2,dx
                 ADD_PTR 6,0,ds,si       ;DS:SI -> start-of-data
-
 		mov	ax, ds
-		mov	es:[di].um_sound_data_seg, ax
-		mov	es:[di].um_sound_data_off, si
+		mov	word ptr es:[di].um_sound_struct.um_sound_data+2, ax
+		mov	word ptr es:[di].um_sound_struct.um_sound_data, si
 		mov	ax, 1
-
 __exit:         ret
-                ENDP
+process_block   ENDP
 
 ;****************************************************************************
-next_buffer     PROC                    ;Find a registered, unplayed buffer
-                USES ds,si,di
-
+next_buffer     LPROC 	USES DS SI DI   ;Find a registered, unplayed buffer
                 cmp buff_status[0*2],DAC_STOPPED
 		je __b0_registered
                 cmp buff_status[1*2],DAC_STOPPED
@@ -516,18 +517,14 @@ __both_registered:
 		cmp ax, buff_time[1*2]
 		ja __b1_registered
 		mov ax, 0
-
 __return:       ret
-                ENDP
+next_buffer     ENDP
 
 ;****************************************************************************
-process_buffer  PROC C,Buf,ssp:FAR PTR  ;Play specified buffer
-                USES 	ds,di
-
+process_buffer  LPROC USES DS DI Buf:WORD,ssp:FAR PTR  ;Play specified buffer
 		les	di,[ssp]
                 mov 	si,[Buf]            ;get buffer handle 
                 shl 	si,1                ;derive index
-
                 mov 	ax,buff_pack[si]
                 mov 	pack_byte,ax
                 mov 	packing,ax
@@ -540,7 +537,7 @@ process_buffer  PROC C,Buf,ssp:FAR PTR  ;Play specified buffer
 		jne	__stereo
 		jmp	short __data_type
 __stereo:	or	al, UM_STEREO
-__data_type:	mov	es:[di].um_data_type, al
+__data_type:	mov	es:[di].um_sound_struct.um_data_type, al
 		mov	ax,buff_sample[si]
 		mov	bx, 256
 		sub	bx,ax
@@ -548,18 +545,17 @@ __data_type:	mov	es:[di].um_data_type, al
 		mov	ax,4240h
 		div	bx
                 mov 	current_rate,ax
-		mov	es:[di].um_sample_rate, ax
+		mov	es:[di].um_sound_struct.um_sample_rate, ax
 		mov	dx,buff_len_h[si];
 		mov	bx,buff_len_l[si];
-		mov	word ptr es:[di].um_sound_len,bx
-		mov	word ptr es:[di].um_sound_len+2,dx
+		mov	word ptr es:[di].um_sound_struct.um_sound_len,bx
+		mov	word ptr es:[di].um_sound_struct.um_sound_len+2,dx
 		mov	bx,buff_data_s[si];
 		mov	dx,buff_data_o[si];	
-		mov	es:[di].um_sound_data_seg,bx
-		mov	es:[di].um_sound_data_off,dx
-
+		mov	word ptr es:[di].um_sound_struct.um_sound_data+2,bx
+		mov	word ptr es:[di].um_sound_struct.um_sound_data,dx
 __exit:         ret
-                ENDP
+process_buffer  ENDP
 
 ;****************************************************************************
 ;*                                                                          *
@@ -567,48 +563,35 @@ __exit:         ret
 ;*                                                                          *
 ;****************************************************************************
 
-describe_driver PROC H                  ;Return far ptr to DDT
-                USES 	ds,si,di
-
+describe_driver CPROC USES DS SI DI H:WORD       ;Return far ptr to DDT
                 pushf
                 cli
-
                 mov 	dx,cs
                 mov 	device_name_s,dx
                 lea 	ax,DDT
-
                 POP_F
                 ret
-                ENDP
+describe_driver ENDP
 
 ;****************************************************************************
-shutdown_driver PROC H,SignOff:FAR PTR
-                USES 	ds,si,di
-
+shutdown_driver CPROC USES DS SI DI H:WORD, SignOff:FAR PTR
                 pushf
                 cli
-
-                call 	stop_d_pb 
-
+                INVOKE 	stop_d_pb, H 
 		mov	ax,TSR_FREE_MEMORY
 		mov	dx,word ptr umss.um_gf1mem
 		mov	bx,word ptr umss.um_gf1mem+2
-		call	cs:gf1hook
-
+		call	gf1hook
 		mov	ax,TSR_APP_END
-		call	[cs:gf1hook]
-
+		call	gf1hook
 __exit:         POP_F
                 ret
-                ENDP
+shutdown_driver ENDP
 
 ;****************************************************************************
-set_d_pb_pan    PROC H,Pan              ;Set digital playback panpot 0-127
-                USES 	ds,si,di           
-
+set_d_pb_pan    CPROC USES DS SI DI H:WORD, Pan:WORD              ;Set digital playback panpot 0-127
                 pushf
                 cli
-
 		mov	ax, [Pan]
 		mov	current_pan, ax
 		mov	ax, 127
@@ -623,32 +606,24 @@ set_d_pb_pan    PROC H,Pan              ;Set digital playback panpot 0-127
 		mov	cx, playing
 		dec	cx
 		call	gf1hook
-
 __ret:
                 POP_F
                 ret
-                ENDP
+set_d_pb_pan    ENDP
 
 ;****************************************************************************
-get_d_pb_pan    PROC H                  ;Get digital playback panpot 0-127
-                USES 	ds,si,di           
-
+get_d_pb_pan    CPROC USES DS SI DI H:WORD          ;Get digital playback panpot 0-127
                 pushf
                 cli
-
 		mov	ax, current_pan
-
                 POP_F
                 ret
-                ENDP
+get_d_pb_pan    ENDP
 
 ;****************************************************************************
-set_d_pb_vol    PROC H,Vol              ;Set digital playback volume 0-127
-                USES 	ds,si,di           ;(0=off; anything else=on)
-
-                pushf
+set_d_pb_vol    CPROC USES DS SI DI H:WORD, Vol:WORD              ;Set digital playback volume 0-127
+                pushf                      		;(0=off; anything else=on)
                 cli
-
 ; gf1 volume is a 12-bit number.
                 mov 	bx,[Vol]
 		mov	current_volume,bx
@@ -665,26 +640,19 @@ set_d_pb_vol    PROC H,Vol              ;Set digital playback volume 0-127
 __ret:
                 POP_F
                 ret
-                ENDP
+set_d_pb_vol    ENDP
 
 ;****************************************************************************
-get_d_pb_vol    PROC H                  ;Get digital playback volume 0-127        
-                USES 	ds,si,di          
-
+get_d_pb_vol    CPROC USES DS SI DI H:WORD                 ;Get digital playback volume 0-127        
                 pushf
                 cli
-
                 mov 	ax,current_volume
-
                 POP_F
                 ret
-                ENDP
+get_d_pb_vol    ENDP
 
 ;****************************************************************************
-detect_device   PROC H,IO_ADDR,IRQ,DMA,DRQ  ;Check for presence of supported
-                USES 	ds,si,di               ;device
-
-
+detect_device   CPROC USES DS SI DI H:WORD,IO_ADDR:WORD,IRQ:WORD,DMA:WORD,DRQ:WORD  ;Check for presence of supported device
 GF1_AIL_STR_SIZE	EQU		8
 GF1_VECTORS		EQU		8
 HOOK_STR_SIZE		EQU		7
@@ -703,7 +671,6 @@ next_vector:
 ; es is segment of gf1 driver.
 ; di is Offset into GF1AIL.COM's vector stamp.
 		mov	di,0103H
-
 ; ds:si is gf166.com string es:di is hook vectors'
 		mov	si,offset chk_hook_str
 		push	cx
@@ -719,88 +686,67 @@ next_vector:
 vector_valid:
 		pop	cx
 		pop	ds
-
 		mov	ah,035h
 		int	21h
 		mov     cs:hookoff, bx
 		mov     cs:hookseg, es
-
 		mov	ax,1
 		jmp	ok_detect
 gf1ail_not_found:
 		pop	ds
-
 		mov	ax,0h
 ok_detect:
                 ret
-                ENDP
+detect_device   ENDP
 
 ;****************************************************************************
-init_driver     PROC H,IO_ADDR,IRQ,DMA,DRQ  
-                USES 	ds,si,di
-
+init_driver     CPROC USES DS SI DI H:WORD,IO_ADDR:WORD,IRQ:WORD,DMA:WORD,DRQ:WORD  
 		mov	playing, 0
 		mov	db_playing, -1
 		mov	stop_voc_mode, 0
 		mov	time, 0
-
-		mov	umss.um_stereo_mem_seg, cs
-		mov	umss.um_stereo_mem_off, OFFSET st_mem
-
-		mov	umss.um_callback_addr_seg, cs
-		mov	umss.um_callback_addr_off, OFFSET um_callback
-
+		mov	umss.um_stereo_mem.XPTR.PSEG, cs
+		mov	umss.um_stereo_mem.XPTR.POFF, OFFSET st_mem
+		mov	umss.um_callback_addr.XPTR.PSEG, cs
+		mov	umss.um_callback_addr.XPTR.POFF, OFFSET um_callback
 		mov	umss.um_pan, 7
 	        mov	umss.um_volume, 4095
 		mov	current_volume, 127
-
                 mov	loop_cnt,0
                 mov	DAC_status,DAC_STOPPED
                 mov	buffer_mode,BUF_MODE
-
                 mov	buff_status[0*2],DAC_DONE
                 mov	buff_status[1*2],DAC_DONE
-
 		mov	ax,TSR_APP_START
-		call	[cs:gf1hook]
-
+		call	gf1hook
 		; allocate 8K of GF1 DRAM for double_buffering
 		xor	bx,bx
 		mov	dx,8*1024
 		mov	ax,TSR_ALLOCATE_MEMORY
-		call	cs:gf1hook
+		call	gf1hook
 		mov	word ptr umss.um_gf1mem,ax
 		mov	word ptr umss.um_gf1mem+2,dx
                 or	ax,dx
-
                 ret
-                ENDP
+init_driver     ENDP
 
 ;****************************************************************************
-index_VOC_blk   PROC H,File:FAR PTR,Block,SBuf:FAR PTR
-                USES 	ds,si,di
-                LOCAL 	x_status,x_pack:BYTE,x_tc:BYTE
-
+index_VOC_blk   CPROC USES DS SI DI H:WORD,File:FAR PTR,Block:WORD,SBuf:FAR PTR               
+                LOCAL 	x_status:WORD,x_pack:BYTE,x_tc:BYTE
                 pushf
                 cli
                 cld
-
                 mov 	x_status,0
-
                 lds 	si,[File]
                 mov 	ax,[si+14h]     ;get offset of data block
                 ADD_PTR ax,0,ds,si
-
                 mov 	bx,[Block]
-
 __get_type:     mov 	al,[si]         ;get block type
                 mov 	ah,0
                 cmp 	ax,0            ;terminator block?
                 je 	__exit          ;yes, return AX=0 (block not found)
-
                 cmp 	ax,8            ;extended voice data?
                 jne 	__chk_voice     ;no
-
                 mov 	al,[si+5]       ;get extended voice parameters
                 mov 	x_tc,al         ;high byte of TC = normal sample rate
                 mov 	ax,[si+6]       ;get pack (AL) and mode (AH)
@@ -810,114 +756,86 @@ __get_type:     mov 	al,[si]         ;get block type
 __set_pack:     mov 	x_pack,al
                 mov 	x_status,1      ;flag extended block override
                 jmp 	__next_blk
-
 __chk_voice:    cmp 	ax,1            ;voice data block?
                 jne 	__chk_marker    ;no
-
                 cmp 	bx,-1           ;marker found (or disregarded)?
                 je 	__vblk_found    ;yes, use this voice data block
                 jmp 	__next_blk      ;no, keep looking
-
 __chk_marker:   cmp 	ax,4            ;marker block?
                 jne 	__next_blk      ;no, keep looking
-
                 cmp 	bx,[si+4]       ;yes, compare marker numbers
                 jne 	__next_blk
-
                 mov 	bx,-1           ;marker found, use next voice block
-
 __next_blk:     inc 	si
                 lodsw
                 mov 	dl,[si]
                 mov 	dh,0            ;blk len: AL=LSB, AH=KSB, DL=MSB, DH=0
                 inc 	si
-
                 ADD_PTR ax,dx,ds,si     ;point to next block
                 jmp 	__get_type
-
 __vblk_found:   les	di,[SBuf]  	    ;get pointer to output structure
-
                 mov 	bl,[si+4]       ;copy sampling rate
                 mov 	al,[si+5]       ;copy packing type
                 mov 	bh,0
                 mov 	ah,0
-
                 cmp 	x_status,0      ;previous extended block overrides
                 je 	__use_vd        ;data block values
                 mov 	al,x_pack
                 mov 	bl,x_tc
                 mov 	x_status,0
-
-__use_vd:       mov 	es:[di].sample_rate,bx
-                mov 	es:[di].pack_type,ax
-
+__use_vd:       mov 	es:[di].sbuffer.sample_rate,bx
+                mov 	es:[di].sbuffer.pack_type,ax
                 mov 	ax,[si+1]           ;copy voice data length
                 mov 	dl,[si+3]
                 mov 	dh,0
                 sub 	ax,2
                 sbb 	dx,0
-                mov 	es:[di].len_l,ax
-                mov 	es:[di].len_h,dx
-
+                mov 	es:[di].sbuffer.len_l,ax
+                mov 	es:[di].sbuffer.len_h,dx
                 mov 	dx,ds               ;copy pointer to voice data
                 mov 	ax,si
                 ADD_PTR 6,0,dx,ax       
-                mov 	WORD PTR es:[di].data,ax
-                mov 	WORD PTR es:[di].data+2,dx
-
+                mov 	WORD PTR es:[di].sbuffer.mydata,ax
+                mov 	WORD PTR es:[di].sbuffer.mydata+2,dx
                 mov 	ax,1
-
 __exit:         POP_F
                 ret
-                ENDP
+index_VOC_blk   ENDP
 
 ;****************************************************************************
-register_sb     PROC H,BufNum,SBuf:FAR PTR
-                USES 	ds,si,di
-
+register_sb     CPROC USES DS SI DI H:WORD,BufNum:WORD,SBuf:FAR PTR
                 pushf
                 cli
-
                 cmp 	buffer_mode,VOC_MODE        
                 jne 	__get_bufnum        ;not in VOC mode, proceed
-                call 	stop_d_pb           ;else stop VOC file output first
+                INVOKE 	stop_d_pb, H        ;else stop VOC file output first
                 mov 	buffer_mode,BUF_MODE
-
 __get_bufnum:   mov 	di,[BufNum]         ;get buffer #0-1
                 shl 	di,1
-
                 lds 	si,[SBuf]           ;copy structure data to buffer 
-                mov 	ax,[si].pack_type   ;descriptor fields
+                mov 	ax,[si].sbuffer.pack_type   ;descriptor fields
                 mov 	buff_pack[di],ax
-                mov 	ax,[si].sample_rate
+                mov 	ax,[si].sbuffer.sample_rate
                 mov 	buff_sample[di],ax
-
-                les 	bx,[si].data
+                les 	bx,[si].sbuffer.mydata
                 mov 	buff_data_o[di],bx
                 mov 	buff_data_s[di],es
-
-                mov 	ax,[si].len_l
+                mov 	ax,[si].sbuffer.len_l
                 mov 	buff_len_l[di],ax
-                mov 	ax,[si].len_h
+                mov 	ax,[si].sbuffer.len_h
                 mov 	buff_len_h[di],ax
-	
 		mov	ax,time		   ; need to know order in which
 		inc	time		   ; buffers were registered so that
 		mov	buff_time[di],ax   ; playback happens in correct order
-                
                 mov 	buff_status[di],DAC_STOPPED
-
 __exit:         POP_F                  
                 ret
-                ENDP
+register_sb     ENDP
 
 ;****************************************************************************
-get_sb_status   PROC H,HBuffer
-                USES 	ds,si,di
-
+get_sb_status   CPROC USES DS SI DI H:WORD,HBuffer:WORD
                 pushf
                 cli
-
 	        mov 	bx,[HBuffer]         ;get buffer #0-1
                 shl 	bx,1
                 mov	ax,buff_status[bx]
@@ -927,77 +845,59 @@ get_sb_status   PROC H,HBuffer
 		cmp	ax, DAC_BUFF_REGISTERED
 		jne	__exit
 		mov	ax, DAC_STOPPED
-
 __exit: 	POP_F
                 ret
-                ENDP
+get_sb_status   ENDP
 
 ;****************************************************************************
-play_VOC_file   PROC H,File:FAR PTR,Block
-                LOCAL block_file:DWORD
-                USES 	ds,si,di
-
+play_VOC_file   CPROC USES DS SI DI H:WORD,File:FAR PTR,Block:WORD
+                LOCAL block_file:DWORD              
                 pushf
                 cli
-
                 mov 	xblk_status,0
-
-                call 	stop_d_pb      ;assert VOC mode
+                INVOKE 	stop_d_pb, H   ;assert VOC mode
                 mov 	buffer_mode,VOC_MODE
-
                 les 	di,[File]
                 mov 	WORD PTR block_file,di
                 mov 	WORD PTR block_file+2,es
-
                 mov 	DAC_status,DAC_DONE 
-                      
                 lds 	si,block_file
                 mov 	ax,[si+14h]         ;get offset of data block
                 ADD_PTR ax,0,ds,si
                 mov 	WORD PTR block_ptr,si
                 mov 	WORD PTR block_ptr+2,ds
-
                 cmp 	[Block],-1    ;play 1st block if no marker specified
                 je 	__do_it
-
 __find_blk:
-	        call 	block_type 
-
+	        INVOKE 	block_type 
                 cmp 	ax,0                ;terminator block?
                 je 	__exit               ;yes, exit (block not found)
-                call 	set_xblk
-                call 	marker_num         ;get marker # (or -1 if non-marker)
+                INVOKE 	set_xblk
+                INVOKE 	marker_num         ;get marker # (or -1 if non-marker)
                 mov 	si,ax
-                call	next_block
+                INVOKE	next_block
                 cmp 	si,[Block]
                 jne 	__find_blk
-
 __do_it:        mov 	DAC_status,DAC_STOPPED         
                 ;return w/block_ptr -> 1st file block
 __exit:         POP_F                       
                 ret
-
-                ENDP
+play_VOC_file   ENDP
 
 ;****************************************************************************
-start_d_pb      PROC H
-                USES 	ds,es,si,di
-
+start_d_pb      CPROC USES DS ES SI DI H:WORD
                 pushf
                 cli
-
                 cmp 	playing, 0
                 jne 	__exit               ;bail out if already playing
-
                 cmp 	buffer_mode,VOC_MODE
                 je 	__voc_mode    ;start Creative Voice File playback
-
-		call	next_buffer	     ;start dual-buffer playback
+		INVOKE	next_buffer	     ;start dual-buffer playback
                 cmp 	ax,-1
                 je 	__exit               ;no buffers registered, exit
                 mov 	DAC_status,DAC_PLAYING
 		mov	si, ax
-		call	process_buffer C,ax,OFFSET umss,cs
+		INVOKE	process_buffer, si, ADDR umss
 		mov	db_playing, si	     ;mark which buffer is playing
 		shl	si,1
                 mov 	buff_status[si],DAC_PLAYING
@@ -1013,28 +913,22 @@ __start_pb:	mov	ax, cs
 		mov	DAC_status, DAC_STOPPED
 		mov	playing, 0
                 jmp 	__exit
-
 __voc_mode:
 		mov	stop_voc_mode, 0
                 mov 	DAC_status,DAC_PLAYING
-                call	process_block C, OFFSET umss, cs
+                INVOKE	process_block, ADDR umss
 		jmp	__start_pb
-
 __exit:         POP_F
                 ret
-                ENDP
+start_d_pb      ENDP
 
 ;****************************************************************************
-stop_d_pb       PROC H
-                USES 	ds,si,di
-
+stop_d_pb       CPROC USES DS SI DI H:WORD
                 pushf
                 cli
-
                 cmp 	playing,0
                 jne 	__stop_DMA          ;if in .VOC mode and no longer
 		jmp	__stopped
-
 __stop_DMA:	mov	cx,playing
 		dec	cx
 		mov	ax,TSR_STOP_DIGITAL
@@ -1042,57 +936,42 @@ __stop_DMA:	mov	cx,playing
 __stopped: 	mov 	DAC_status,DAC_STOPPED
                 mov 	buff_status[0*2],DAC_DONE
                 mov 	buff_status[1*2],DAC_DONE
-
                 POP_F
                 ret
-                ENDP
+stop_d_pb       ENDP
 
 ;****************************************************************************
-pause_d_pb      PROC H
-                USES 	ds,si,di
-
+pause_d_pb      CPROC USES DS SI DI H:WORD
                 pushf
                 cli
-
 		mov	ax,TSR_PAUSE_DIGITAL
 		mov	cx,umss.um_voice
-		call    cs:gf1hook
-
+		call    gf1hook
                 mov 	DAC_status,DAC_PAUSED
-
 __exit:         POP_F
                 ret
-                ENDP
+pause_d_pb      ENDP
 
 ;****************************************************************************
-cont_d_pb       PROC H
-                USES 	ds,si,di
-
+cont_d_pb       CPROC USES DS SI DI H:WORD
                 pushf
                 cli
-
                 cmp 	DAC_status,DAC_PAUSED
-
 		mov	ax,TSR_RESTART_DIGITAL
 		mov	cx,umss.um_voice
-		call    cs:gf1hook
-
+		call    gf1hook
 __exit:         POP_F
                 ret
-                ENDP
+cont_d_pb       ENDP
 
 ;****************************************************************************
-get_VOC_status  PROC H
-                USES 	ds,si,di
-
+get_VOC_status  CPROC USES DS SI DI H:WORD
                 pushf
                 cli
-
                 mov 	ax,DAC_status
-
                 POP_F
                 ret
-                ENDP
+get_VOC_status  ENDP
 
 ;****************************************************************************
-          	END
+          	END 

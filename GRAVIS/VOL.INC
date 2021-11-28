@@ -1,4 +1,4 @@
-label gf1_volumes word
+gf1_volumes label word
 	dw 00000h, 009ffh, 00a80h, 00affh
 	dw 00b40h, 00b80h, 00bc0h, 00bffh, 00c20h
 	dw 00c40h, 00c60h, 00c80h, 00ca0h, 00cc0h

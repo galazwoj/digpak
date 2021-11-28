@@ -64,30 +64,32 @@ UM_STEREO	EQU	8	; 1 for stereo data
 UM_STOP_SOUND	EQU	0
 UM_MORE_DATA	EQU	1
 UM_BUFFER_DONE	EQU	2
+UM_VOICE_DONE	EQU	2
 UM_PAUSE	EQU	3
 
 UM_ERR_FRAMING	EQU	16
 UM_ERR_OVERRUN	EQU	32
 
-struc	SEG_OFF
-POFF	dw ?
-PSEG	dw ?
-	ends
-union	GUSFPTR
-	DPTR dd ?
-	XPTR SEG_OFF <>
-	ENDS
+SEG_OFF	struct
+  	POFF	dw ?
+  	PSEG	dw ?
+SEG_OFF	ends
+
+GUSFPTR	union
+  	DPTR dd ?
+  	XPTR SEG_OFF <>
+GUSFPTR	ENDS
 	
-Struc	um_sound_struct
-	um_sound_data GUSFPTR <> 
-	um_stereo_mem GUSFPTR <> 
-	um_sound_len GUSFPTR <> 
-	um_gf1mem GUSFPTR <>
-	um_pan	     db ?
-	um_volume    dw ?
-	um_sample_rate  dw ?
-	label um_voice     word
-	um_priority     dw ?
-	um_data_type    db ?
+um_sound_struct	Struct	
+	um_sound_data GUSFPTR 	<> 
+	um_stereo_mem GUSFPTR	<> 
+	um_sound_len GUSFPTR 	<> 
+	um_gf1mem GUSFPTR 	<>
+	um_pan	     		db ?
+	um_volume    		dw ?
+	um_sample_rate  	dw ?
+ 	um_voice equ	um_priority
+	um_priority     	dw ?
+	um_data_type    	db ?
 	um_callback_addr GUSFPTR <>
-ENDS
+um_sound_struct	ENDS
