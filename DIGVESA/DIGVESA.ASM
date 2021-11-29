@@ -20,25 +20,21 @@
 ;---|*|
 ;   \*/
 
-	P386				; Enable 32 bit registers.
+		.model tiny, C
 
 MONOSCR 	EQU	1
 VERSION_NUMBER	equ	340
 
-	LOCALS				; Enable local labels
-	IDEAL				; Use Turbo Assembler's IDEAL mode
-	JUMPS
+	INCLUDE COMPAT.INC
+        INCLUDE PROLOGUE.MAC          ;; common prologue
+	INCLUDE SOUNDRV.INC
 
-	include "prologue.mac"          ; common prologue
-	include "soundrv.inc"
+CPROC 	equ	<Proc near C>
 
-SEGMENT _TEXT PARA PUBLIC 'CODE'
-	ENDS
-	ASSUME	CS:_TEXT, DS:_TEXT, SS:NOTHING, ES:NOTHING
-
-SEGMENT _TEXT
-
-        org     100h
+		.code
+		.386
+		org 100h
+		assume es:nothing, ss:nothing
 
 START:
 	jmp	LoadSound		; Load the digitized sound driver
@@ -61,7 +57,6 @@ DUMMYIRQ	dw	-1		; No IRQ used.
 DUMMYEXTRA	dw	-1		; Nothing extra.
 DPMI		dw	 0		; DPMI compliant register usage.
 
-	public	JumpTable
 JumpTable       dw      offset  FUNCT1  ; 0688h DigPlay
 		dw	offset	FUNCT2	; 0689h Sound Status
 		dw	offset	FUNCT3	; 068Ah Massage Audio
@@ -88,26 +83,16 @@ JumpTable       dw      offset  FUNCT1  ; 0688h DigPlay
 		dw	offset	FUNCT18 ; 069Fh Set PCM volume.
 		dw	offset	FUNCT19 ; 06A0h Set DPMI compliant register usage.
 
-	public	BACKF
 BACKF           dw      0       ; Backfill defaults to off
-	public	JumpPtr
 JumpPtr         dw      ?
-	public	CallBacks
 CallBacks       dw      0       ; Callback to application flag.
 
-LABEL		CALLBACK  DWORD ; Callback address label.
-	public	CallLow
+CallBack  LABEL DWORD ; Callback address label.
 CallLow         dw      0       ; Low word of callback address.
-	public	CallHigh
 CallHigh        dw      0       ; High word of callback address.
-
-	public	CallDS
 CallDS          dw      0       ; Value of DS register at callback time.
-	public	DivisorRate
 DivisorRate     dw      0       ; Default divisor rate.
-	public	RecordMode
 RecordMode      dw      0       ; set audio recording flag.
-	public	PlayMode
 PlayMode        dw      PCM_8_MONO ; Default play mode is 8 bit PCM.
 
 ; Data used by Kernel interupt
@@ -116,15 +101,13 @@ OLDIN	FARPTR	<>		; Original interupt vector.
 ID      db      'KERN'          ; 4B45524Eh Interupt identifier string.
 IND     db      'KR'            ; 4B52h indicates a kernel installed interupt.
 
-
 ;   /*\
 ;---|*|----------------------======================---------------------------
 ;---|*|----------------------====< ENTRYPOINT >====---------------------------
 ;---|*|----------------------======================---------------------------
 ;   \*/
 
-	public	SoundInterupt
-Proc	SoundInterupt far
+SoundInterupt Proc far
 ;
 ; validate the DIGPAK function number, or chain to the next driver
 ;
@@ -148,10 +131,10 @@ Proc	SoundInterupt far
         shl     ax,1
 	add	ax,offset JumpTable
 	xchg	ax,bx
-	mov	bx,[cs:bx]
+	mov	bx,cs:[bx]
 	xchg	ax,bx
-	mov	[cs:JumpPtr],ax
-	jmp	[cs:JumpPtr]		; Near jump will be modified!!
+	mov	cs:JumpPtr,ax
+	jmp	cs:JumpPtr		; Near jump will be modified!!
 ;
 ; chain to the old IRQ vector to process other type of audio functionality
 ;
@@ -166,7 +149,7 @@ Proc	SoundInterupt far
 @@CHAIN2:
 	jmp	[cs:OLDIN.DPTR] 	; Chain to original interrupt vector.
 
-	endp
+SoundInterupt	endp
 
 ;
 ;   /*\
@@ -180,7 +163,7 @@ Proc	SoundInterupt far
 ;---|*|
 ;   \*/
 ;
-	public	FUNCT1
+
 FUNCT1:
 	PushCREGS
 	ConvertDPMI ds,esi
@@ -208,7 +191,7 @@ FUNCT1:
 ;---|*|
 ;   \*/
 ;
-	public	FUNCT2
+
 FUNCT2:
 	mov	bx,VERSION_NUMBER	; Return VERSION NUMBER in BX! 3.30
 	cmp	[cs:LOOPING],1		; Looping a sample?
@@ -222,7 +205,9 @@ FUNCT2:
 	xor	dx,dx			; Not looping
 
  if MONOSCR
+.286
 	push	24
+.8086
         call    reportmono              ; the monochrome screen.
     endif
 
@@ -241,7 +226,7 @@ FUNCT2:
 ;---|*|
 ;   \*/
 ;
-	public	FUNCT3
+
 FUNCT3:
 	PushCREGS
 	ConvertDPMI ds,esi
@@ -275,7 +260,7 @@ FUNCT3:
 	push	cx
 
         les     bx,[ServicesPtr]        ; get the services structure
-	call	[dword ptr es:bx+wsWavePrepare] ; start the block
+	call	[dword ptr es:bx.WAVEService.wsWavePrepare] ; start the block
 ;
 @@skipfixup:
 
@@ -295,7 +280,7 @@ FUNCT3:
 ;---|*|
 ;   \*/
 ;
-	public	FUNCT4
+
 FUNCT4:
 	PushCREGS
 	ConvertDPMI ds,esi
@@ -352,10 +337,8 @@ FUNCT4:
 ;---|*| ;;  * PCM16STEREO     11 support 16 bit stereo PCM
 ;   \*/
 ;
-	public	FUNCT5
-FUNCT5:
 
-	MASM
+FUNCT5:
 
  ;; int 3
 
@@ -432,10 +415,8 @@ FUNCT5:
 
  endif
 
-        IDEAL
-
         mov     bx,cs
-	lea	cx,[IDENTIFIER]
+	xlea	cx,[IDENTIFIER]
 	ClearSemaphoreIRET
 
 ;
@@ -448,7 +429,7 @@ FUNCT5:
 ;---|*|
 ;   \*/
 ;
-	public	FUNCT6
+
 FUNCT6:
 	ClearSemaphoreIRET
 
@@ -497,7 +478,7 @@ FUNCT6:
 ;---|*|
 ;   \*/
 ;
-	public	FUNCT7
+
 FUNCT7:
 
  ;; int 3
@@ -510,7 +491,7 @@ FUNCT7:
 	mov	[cs:CallBacks],ax	; Callbacks disabled.
 	mov	[cs:CallLow],ax 	; Low address.
 	mov	[cs:CallHigh],ax
-	jmp	@@EXIT
+	jmp	@f
     ;
     @@SC1:
 	mov	[cs:CallLow],bx
@@ -518,7 +499,7 @@ FUNCT7:
 	mov	[cs:CallDS],ds
 	mov	[cs:CallBacks],1
     ;
-    @@EXIT:
+    @@:
 	ClearSemaphoreIRET
 
 ;
@@ -534,13 +515,13 @@ FUNCT7:
 ;---|*| 	terminated.
 ;   \*/
 ;
-	public	FUNCT8
+
 FUNCT8:
 
  ;; int 3
 
 	mov	[cs:PENDING],0		; Turn pending flag OFF when
-	mov	[word cs:LOOPING],0	; stop-sound called.
+	mov	[word ptr cs:LOOPING],0	; stop-sound called.
 	call	StopSound
 	ClearSemaphoreIRET
 
@@ -553,7 +534,7 @@ FUNCT8:
 ;---|*| *DOUG* Unused function.  Not supported by any driver.
 ;   \*/
 ;
-	public	FUNCT9
+
 FUNCT9:
 	ClearSemaphoreIRET
 
@@ -574,7 +555,7 @@ FUNCT9:
 ;---|*|   sound playback and synthesized sound playback.
 ;   \*/
 ;
-	public	FUNCTA
+
 FUNCTA:
 
  ;; int 3
@@ -598,14 +579,14 @@ FUNCTA:
 ;---|*|    DeInstall code.  Not to be called by an application program!
 ;   \*/
 ;
-	public	FUNCTB
+
 FUNCTB:
 
  ;; int 3
 
         mov     [cs:CallBacks],0
-	mov	[word cs:CallBack],0
-	mov	[word cs:CallBack+2],0
+	mov	[word ptr cs:CallBack],0
+	mov	[word ptr cs:CallBack+2],0
 
 	push	ds
 	push	cs
@@ -629,7 +610,7 @@ FUNCTB:
 ;---|*| 	    divisor to default of 18.2 pass a 0 in the DX register.
 ;   \*/
 ;
-	public	FUNCTC
+
 FUNCTC:
 	mov	[cs:DivisorRate],dx    ; Set timer divisor rate.
 	ClearSemaphoreIRET
@@ -656,7 +637,7 @@ FUNCTC:
 ;---|*|
 ;   \*/
 ;
-	public	FUNCTD
+
 FUNCTD:
 
  ;; int 3
@@ -666,7 +647,7 @@ FUNCTD:
 
         push    cs
 	pop	es
-	lea	di,[LOOPSND]
+	xlea	di,[LOOPSND]
 	mov	cx,SIZE LOOPSND
 	rep	movsb
 	mov	ax,068Fh	; Stop any currently playing sound.
@@ -676,15 +657,15 @@ FUNCTD:
 	mov	ds,ax
 	mov	dx,ax		;
 	mov	ax,068Eh
-	lea	bx,[LoopBack]	;
+	xlea	bx,[LoopBack]	;
 	int	66h		; Set loop callback.
 	PopAll
 
         push    cs
 	pop	ds
-	lea	si,[LOOPSND]
-	mov	[word cs:LOOPSOUND],si
-	mov	[word cs:LOOPSOUND+2],ds
+	xlea	si,[LOOPSND]
+	mov	[word ptr cs:LOOPSOUND],si
+	mov	[word ptr cs:LOOPSOUND+2],ds
 	mov	[cs:FROMLOOP],1 ; Set from looping semephore
 	mov	ax,068Bh	; Do FUNCT4
 
@@ -703,7 +684,7 @@ FUNCTD:
 ;---|*| 	AX = 1	Sound was posted as pending to play.
 ;   \*/
 ;
-	public	FUNCTE
+
 FUNCTE:
 
  ;; int 3
@@ -738,14 +719,14 @@ FUNCTE:
 	push	di
 	push	cs
 	pop	es
-	lea	di,[PENDSND]	; Pending sound.
+	xlea	di,[PENDSND]	; Pending sound.
 	mov	cx,SIZE PENDSND
 	rep	movsb
 	mov	[cs:PENDING],1
 	mov	[cs:CallBacks],1
-	mov	[word cs:CallBack],offset PlayPending
-	mov	[word cs:CallBack+2],cs
-	mov	[word cs:CallDS],cs
+	mov	[word ptr cs:CallBack],offset PlayPending
+	mov	[word ptr cs:CallBack+2],cs
+	mov	[word ptr cs:CallDS],cs
 	pop	di
 	pop	es
 	mov	ax,1		; Posted as pending.
@@ -764,7 +745,7 @@ FUNCTE:
 ;---|*| 	 AX = 2 Sound playing, no sound pending.
 ;   \*/
 ;
-	public	FUNCTF
+
 FUNCTF:
 
  ;; int 3
@@ -774,13 +755,13 @@ FUNCTF:
 
 	mov	ax,[cs:PlayingSound]
 	or	ax,ax		; Currently playing a sound?
-	jnz	@@POST		; yes->try to post pending.
+	jnz	@F		; yes->try to post pending.
 
 	popf
 
 	ClearSemaphoreIRET
 ;
-@@POST:
+@@:
         popf
 
         cmp     [cs:PENDING],1  ; Have a sound pending?
@@ -808,7 +789,7 @@ FUNCTF:
 ;---|*|
 ;   \*/
 ;
-	public	FUNCT10
+
 FUNCT10:
 
 ;; *DOUG* If you want to support Stereo Panning, here's the layer.
@@ -848,13 +829,11 @@ FUNCT10:
 ;;	   if you are playing 11khz stereo 8 bit sound the user passes
 ;;	   11khz as the playback frequency NOT 22khz.
 
-DataTable:	dw	0108h		; 8 bit  mono
+DataTable	dw	0108h		; 8 bit  mono
 		dw	0208h		; 8 bit  stereo
 		dw	0110h		; 16 bit mono
 		dw	0210h		; 16 bit stereo
 
-
-        public  FUNCT11
 FUNCT11:
 
  ;; int 3
@@ -863,7 +842,7 @@ FUNCT11:
 
         mov     bx,dx
 	shl	bx,1
-	mov	ax,[word ptr cs:bx+DataTable]
+	mov	ax,word ptr cs:DataTable[bx]
 
 	cmp	al,8			; 8 bit request?
 	jz	@@do8			; yes, continueo on...
@@ -900,14 +879,14 @@ FUNCT11:
 ;---|*|
 ;   \*/
 ;
-	public	FUNCT12
+
 FUNCT12:
 
  ;; int 3
 
 	mov	dx,cs			; Code segment.
-	lea	ax,[PENDING]		; Address of pending flag.
-	lea	bx,[INDIGPAK]		; Address of semaphore address.
+	xlea	ax,[PENDING]		; Address of pending flag.
+	xlea	bx,[INDIGPAK]		; Address of semaphore address.
 	ClearSemaphoreIRET
 
 ;
@@ -932,7 +911,6 @@ FUNCT12:
 ;;	    record capability bit in the audiocapabilities call, and of course
 ;;	    respond to the RecordMode flag, which is commented out below.
 
-	public	FUNCT13
 FUNCT13:
 
 	mov	ax,(WAVEMR8K+WAVESR8K+WAVEMR11K+WAVESR11K+WAVEMR22K+WAVESR22K)
@@ -961,7 +939,7 @@ FUNCT13:
 ;---|*|
 ;   \*/
 ;
-	public	FUNCT14
+
 FUNCT14:
 
  ;; int 3
@@ -985,7 +963,7 @@ FUNCT14:
 ;---|*|
 ;   \*/
 ;
-	public	FUNCT15
+
 FUNCT15:
 
  ;; int 3
@@ -1022,12 +1000,14 @@ FUNCT15:
 ;---|*|
 ;   \*/
 ;
-	public	FUNCT16
+
 FUNCT16:
 	call	ReportDMAC
 
  if MONOSCR
+.286
 	push	24
+.8086
         call    reportmono              ; the monochrome screen.
     endif
 
@@ -1049,7 +1029,7 @@ FUNCT16:
 ;---|*|
 ;   \*/
 ;
-	public	FUNCT17
+
 FUNCT17:
 	PushCREGS
 	ConvertDPMI es,ebx
@@ -1080,11 +1060,9 @@ FUNCT17:
 ;
 ;; * DOUG * Global wave volume setting goes here.
 
-	public	FUNCT18
 FUNCT18:
 	xor	ax,ax			; Default, volume not set.
 	ClearSemaphoreIRET
-
 ;
 ;   /*\
 ;---|*|-----------------------====< FUNCT19 >====------------------------------
@@ -1099,11 +1077,9 @@ FUNCT18:
 ;   \*/
 ;
 
-	public	FUNCT19
 FUNCT19:
 	mov	[cs:DPMI],dx		; Set DPMI compliancy flag.
 	ClearSemaphoreIRET
-
 
 ;   /*\
 ;---|*|----------------------======================---------------------------
@@ -1121,17 +1097,13 @@ FUNCT19:
 ;---|*|
 ;   \*/
 
-	public	CheckBoundary
-Proc    CheckBoundary   near
-	ARG	SOURCE:DWORD,SLEN:WORD
-	PENTER	0
-
-	mov	ax,[word SOURCE]
-	mov	dx,[word SOURCE+2]
+CheckBoundary	CPROC SOURCE:DWORD,SLEN:WORD
+	mov	ax,[word ptr SOURCE]
+	mov	dx,[word ptr SOURCE+2]
 	GET20BIT			; Into 20 bit mode.
 	mov	bx,dx			; Save DMA page.
-	mov	ax,[word SOURCE]
-	mov	dx,[word SOURCE+2]
+	mov	ax,[word ptr SOURCE]
+	mov	dx,[word ptr SOURCE+2]
 	add	ax,[SLEN]		; Point to end.
 	GET20BIT
 	mov	ax,1			; Default is OK.
@@ -1139,10 +1111,10 @@ Proc    CheckBoundary   near
 	je	@@OK
 	xor	ax,ax			; Didn't work.
 @@OK:
-	PLEAVE
+	nope
+	nope	
 	ret
-
-	endp
+CheckBoundary	endp
 
 ;
 ;   /*\
@@ -1152,19 +1124,18 @@ Proc    CheckBoundary   near
 ;---|*|
 ;   \*/
 
-	public	PlayPending
-Proc    PlayPending     far
+PlayPending Proc    far
 	cmp	[PENDING],1		; Pending?
 	jne	@@not
 	mov	[PENDING],0
 	mov	[cs:CallBacks],0	; No longer have one pending..
-	lea	si,[PENDSND]		; Address of pending sound.
+	xlea	si,[PENDSND]		; Address of pending sound.
 	call	DoSoundPlay		; Do a sound play call.
 	ret
 @@not:
 	mov	[cs:CallBacks],0	; Disable callbacks.
 	ret
-	endp
+PlayPending	endp
 
 ;
 ;   /*\
@@ -1174,14 +1145,13 @@ Proc    PlayPending     far
 ;---|*|
 ;   \*/
 
-	public	DoSoundPlay
-Proc    DoSoundPlay     near
+DoSoundPlay Proc    near
 	PushCREGS			; Save all of the important C registers.
 	call	SetAudio
 	call	PlaySound		; Restore important C registers.
 	PopCREGS
 	ret
-	endp
+DoSoundPlay	endp
 
 ;
 ;   /*\
@@ -1191,9 +1161,7 @@ Proc    DoSoundPlay     near
 ;---|*|
 ;   \*/
 
-	public	CheckCallBack
-Proc    CheckCallBack   near
-
+CheckCallBack Proc       near
 	cmp	[cs:CallBacks],0	; Callbacks enabled?
 	je	@@GOUT			; no, exit.
 
@@ -1203,27 +1171,18 @@ Proc    CheckCallBack   near
 	PopAll				; Restore all registers.
 ;
 @@GOUT:
-
 	ret
-	endp
+CheckCallBack	endp
 
-	public	INDIGPAK
 INDIGPAK	dw	0		; Inside DigPak semaphore.
-
-	public	FROMLOOP
 FROMLOOP        dw      0
-	public	SAVECALLBACK
 SAVECALLBACK	dd	?		; Saved callback address.
-	public	SAVECALLDS
 SAVECALLDS      dw      ?
-	public	LOOPING
 LOOPING 	dw	0		; True if we were looping.
 
-	public	LOOPSOUND
 LOOPSOUND       dd      ?
 LOOPSND 	SOUNDSPEC	<>
 
-	public	PENDING
 PENDING 	dw	0		; True, when second sound is pending.
 PENDSND 	SOUNDSPEC <>		; Sound structure of pending sound.
 
@@ -1235,14 +1194,13 @@ PENDSND 	SOUNDSPEC <>		; Sound structure of pending sound.
 ;---|*|
 ;   \*/
 
-	public	LoopBack
-Proc    LoopBack        far
+LoopBack  Proc    far
 	mov	ax,068Bh		; Play preformated data.
 	mov	[cs:FROMLOOP],1
 	lds	si,[LOOPSOUND]		;
 	int	66h			; Start playing the sound again.
 	ret
-	endp
+LoopBack  endp
 
 ;
 ;   /*\
@@ -1252,17 +1210,16 @@ Proc    LoopBack        far
 ;---|*|
 ;   \*/
 
-	public	SetAudio
-Proc    SetAudio        near
-	mov	[ds:(SOUNDSPEC ptr si).ISPLAYING.XPTR.POFF],offset PlayingSound
-	mov	[ds:(SOUNDSPEC ptr si).ISPLAYING.XPTR.PSEG],cs
-	les	bx,[ds:(SOUNDSPEC ptr si).PLAYADR.DPTR]
-	mov	cx,[ds:(SOUNDSPEC ptr si).PLAYLEN]
-	mov	dx,[ds:(SOUNDSPEC si).FREQUENCY]
+SetAudio Proc    near
+	mov	(SOUNDSPEC ptr [si]).ISPLAYING.XPTR.POFF,offset PlayingSound
+	mov	(SOUNDSPEC ptr [si]).ISPLAYING.XPTR.PSEG,cs
+	les	bx,(SOUNDSPEC ptr [si]).PLAYADR.DPTR
+	mov	cx,(SOUNDSPEC ptr [si]).PLAYLEN
+	mov	dx,(SOUNDSPEC ptr [si]).FREQUENCY
 	push	cs
 	pop	ds			; DS = Code group.
 	ret
-	endp
+SetAudio endp
 
 ;
 ;   /*\
@@ -1272,15 +1229,14 @@ Proc    SetAudio        near
 ;---|*|
 ;   \*/
 
-	public	EndLoop
-Proc    EndLoop near
+EndLoop Proc    near
 	mov	[cs:CallBacks],0
-	mov	[word cs:CallBack],0
-	mov	[word cs:CallBack+2],0
-	mov	[word cs:LOOPING],0
+	mov	[word ptr cs:CallBack],0
+	mov	[word ptr cs:CallBack+2],0
+	mov	[word ptr cs:LOOPING],0
 	call	StopSound
 	ret
-	endp
+EndLoop	endp
 
 ;
 ;   /*\
@@ -1290,18 +1246,15 @@ Proc    EndLoop near
 ;---|*|
 ;   \*/
 
-	public	CompleteSound
-Proc    CompleteSound   near
-
+CompleteSound Proc    near
         cmp     [cs:FROMLOOP],1         ; In loop callback?
 	jne	@@WT
 	call	EndLoop 		; don't wait for loop to complete, end it!
 ;
 @@WT:   cmp     [cs:PlayingSound],0     ; Wait until last sound completed.
 	jne	@@WT
-
         ret
-	endp
+CompleteSound	endp
 
 ;
 ;   /*\
@@ -1313,9 +1266,7 @@ Proc    CompleteSound   near
 ;---|*|
 ;   \*/
 
-	public	PlaySound
-Proc    PlaySound       near
-
+PlaySound  Proc    near
 ;;;;	cmp	[cs:PlayMode],PCM_8_STEREO
 ;;;;	jne	@@OK
 ;;;;	shl	dx,1			; X2 playback frequency, when in stereo.
@@ -1326,11 +1277,10 @@ Proc    PlaySound       near
 	push	cx			; Number of bytes.
 	push	es			; Segment
 	push	bx			; Offset
-
         call    VesaOutput              ; Send it.
 	add	sp,8			; Balance stack.
 	ret
-	endp
+PlaySound endp
 
 ;
 ;   /*\
@@ -1340,17 +1290,14 @@ Proc    PlaySound       near
 ;---|*|
 ;   \*/
 
-	public	StopSound
-Proc    StopSound       near
+StopSound Proc    near
 	push	ds
-
 	push	cs
 	pop	ds
 	call	VesaHalt		; Halt it baby.
-
 	pop	ds
 	ret
-	endp
+StopSound endp
 
 ;
 ;   /*\
@@ -1360,9 +1307,7 @@ Proc    StopSound       near
 ;---|*|
 ;   \*/
 
-	public	DoCallBacks
-Proc    DoCallBacks     near
-
+DoCallBacks Proc    near
         cmp     [cs:CallBacks],0
 	je	@@GOUT
 
@@ -1373,8 +1318,7 @@ Proc    DoCallBacks     near
 ;
 @@GOUT:
 	ret
-
-        endp
+DoCallBacks  endp
 
 
 ;   /*\
@@ -1385,53 +1329,39 @@ Proc    DoCallBacks     near
 ;---|*|----------------------=====================---------------------------
 ;   \*/
 
-        MASM
-
-        include vbeai.inc
+        include VBEAI.INC
 
 TRUE	equ	-1
 FALSE	equ	 0
 
-	public	PlayingSound
 PlayingSound    dw      0               ; Holds current status:
-	public	StereoMono
 StereoMono      db      01h             ; Default is mono (1 channel)
-	public	PCMSize
 PCMSize         db      08h             ; 8 bit PCM
-	public	hWAVE
 hWAVE           dw      0               ; handle to the wave device
-	public	hWAVEsize
 hWAVEsize       dw      0               ; size of the WAVE services structure
-	public	hVOLserv
 hVOLserv        dd      0               ; pointer to the Volume services
-	public	CallBackRoutine
 CallBackRoutine dd      0               ; User's callback routine
-	public	ServicesPtr
 ServicesPtr     dd      0               ; holds the original routine
 
 ;
 ; features supported by the VBE/AI device
 ;
 
-	public	vbefeatures
 vbefeatures     dd      0               ; features list
-	public	vbecbrate
 vbecbrate       dw      0               ; callback rate
-	public	vbesamplesize
 vbesamplesize   db      0               ; sample sizes supported
-	public	vbechannels
 vbechannels     db      0               ; number of channels
 
 SERVICESLEN	equ	2048		; size of the services structure
-	public	hServices
 hServices       db      SERVICESLEN dup(0) ; info & services structure address
 
 ;
 ; back fill variables
 ;
 
-	public	blockoffset
 blockoffset     dw      0
+
+.386
 
 ;
 ;   /*\
@@ -1444,8 +1374,6 @@ blockoffset     dw      0
 ;---|*|
 ;   \*/
 
-
-	public	VesaPresent
 VesaPresent     Proc    near
 	sub	cx,cx			; query each device
 ;
@@ -1474,10 +1402,10 @@ crdhr_05:
         sub     ax,004Fh                ; good call?
 	jnz	geve_bad		; no, bail out...
 
-        cmp     cs:[di.gdcclassid],WAVDEVICE ; WAVE device class?
+        cmp     cs:[di.GeneralDeviceClass.gdcclassid],WAVDEVICE ; WAVE device class?
 	jnz	crdhr_05		; no, go find another one...
 
-        cmp     cs:[di.gdcu.wimemreq],SERVICESLEN-16 ; enough memory?
+        cmp     cs:[di.GeneralDeviceClass.gdcu][WAVEInfo.wimemreq],SERVICESLEN-16 ; enough memory?
 	ja	crdhr_05		; no, go find another one...
 
         mov     ax,VESAFUNCID
@@ -1496,20 +1424,20 @@ crdhr_05:
 	
  ;; int 3
 
-	mov	ax,cs:[hServices.gdcu.witimerticks] ; save the callback rate
+	mov	ax,word ptr cs:[hServices.GeneralDeviceClass.gdcu][WAVEInfo.witimerticks] ; save the callback rate
 	mov	cs:[vbecbrate],ax
 
-	mov	al,byte ptr cs:[hServices.gdcu.wiSampleSize]
+	mov	al,byte ptr cs:[hServices.GeneralDeviceClass.gdcu][WAVEInfo.wiSampleSize]
 	mov	cs:[vbesamplesize],al
 
-	mov	ax,cs:[hServices.gdcu.wiChannels]
+	mov	ax,word ptr cs:[hServices.GeneralDeviceClass.gdcu][WAVEInfo.wiChannels]
 	shr	al,1
 	mov	cs:[vbechannels],al	; mono=0,stereo=1
 
-	mov	ax,wptr cs:[hServices.gdcu.wifeatures+0] ; save the features
+	mov	ax,wptr cs:[hServices.GeneralDeviceClass.gdcu][WAVEInfo.wifeatures+0] ; save the features
 	mov	wptr cs:[vbefeatures+0],ax
 
-	mov	ax,wptr cs:[hServices.gdcu.wifeatures+2] ; save the features
+	mov	ax,wptr cs:[hServices.GeneralDeviceClass.gdcu][WAVEInfo.wifeatures+2] ; save the features
 	mov	wptr cs:[vbefeatures+2],ax
 ;
 ; all done, return with FM and DAC found
@@ -1520,7 +1448,6 @@ crdhr_05:
 geve_bad:
 	sub	ax,ax			; not found...
 	ret
-
 VesaPresent     endp
 
 ;
@@ -1535,8 +1462,7 @@ VesaPresent     endp
 ;---|*|
 ;   \*/
 
-	public	VesaInit
-VesaInit        proc    near
+VesaInit    proc    near
         push    es
 	push	si
 ;
@@ -1564,10 +1490,10 @@ VesaInit        proc    near
 	mov	es,si
 	mov	si,cx
 
-	mov	wptr es:[si.wsApplPSyncCB+0],offset VBECallback
-	mov	wptr es:[si.wsApplPSyncCB+2],cs
-	mov	wptr es:[si.wsApplRSyncCB+0],offset VBECallback
-	mov	wptr es:[si.wsApplRSyncCB+2],cs
+	mov	wptr es:[si.WAVEService.wsApplPSyncCB+0],offset VBECallback
+	mov	wptr es:[si.WAVEService.wsApplPSyncCB+2],cs
+	mov	wptr es:[si.WAVEService.wsApplRSyncCB+0],offset VBECallback
+	mov	wptr es:[si.WAVEService.wsApplRSyncCB+2],cs
 
 	; get a copy of the volume services, if available.
 
@@ -1584,7 +1510,6 @@ VesaInit        proc    near
 	pop	si
 	pop	es
 	ret
-
 VesaInit endp
 
 ;
@@ -1595,7 +1520,6 @@ VesaInit endp
 ;---|*|
 ;   \*/
 
-	public	VesaRemove
 VesaRemove      proc    near
 ;
 ; flush everything.
@@ -1614,7 +1538,6 @@ VesaRemove      proc    near
 	sbb	ax,ax			; FFFF if not good, else 0000
 	neg	ax			; 0001 if not good, else 0000
 	ret
-
 VesaRemove endp
 
 ;
@@ -1625,8 +1548,6 @@ VesaRemove endp
 ;---|*|
 ;   \*/
 
-
-	public	VesaContinue
 VesaContinue    proc    near
         push    es
 	push	di
@@ -1639,14 +1560,13 @@ VesaContinue    proc    near
 	push	ax			; push a NULL parameter
 
         les     di,[ServicesPtr]        ; get the services structure
-	call	es:[di.wsResumeIO]
+	call	es:[di.WAVEService.wsResumeIO]
 	inc	ax			; go from ffff to 0 or 0 to 01
 ;
 @CTCN05:
         pop     di
 	pop	es
 	ret
-
 VesaContinue    endp
 
 ;
@@ -1657,7 +1577,6 @@ VesaContinue    endp
 ;---|*|
 ;   \*/
 
-	public	VesaHalt
 VesaHalt        proc    near
         push    es
 	push	di
@@ -1675,7 +1594,7 @@ VesaHalt        proc    near
 	push	ax			; push a NULL parameter
 
         les     di,[ServicesPtr]        ; get the services structure
-	call	es:[di.wsStopIO]
+	call	es:[di.WAVEService.wsStopIO]
 
 	sub	ax,ax			; it is stopped, no matter what
 ;
@@ -1683,7 +1602,6 @@ VesaHalt        proc    near
         pop     di
 	pop	es
 	ret
-
 VesaHalt        endp
 
 ;
@@ -1694,12 +1612,7 @@ VesaHalt        endp
 ;---|*|
 ;   \*/
 
-	public	VesaOutput
-Proc    VesaOutput      near
-	ARG	SOUND:DWORD,SNDLEN:WORD,FREQ:WORD
-        push    bp
-	mov	bp,sp
-
+VesaOutput CPROC SOUND:DWORD,SNDLEN:WORD,FREQ:WORD
         push    es
 	push	si
 
@@ -1737,7 +1650,7 @@ Proc    VesaOutput      near
 	cbw
 	push	ax
 
-        call    es:[si.wsPCMInfo]       ; set the sample rate
+        call    es:[si.WAVEService.wsPCMInfo]       ; set the sample rate
 ;
 ; see which type of playback we need
 ;
@@ -1753,7 +1666,7 @@ Proc    VesaOutput      near
 	push	ax			; length
 	push	[SNDLEN]
 
-	call	es:[si.wsWaveRegister]
+	call	es:[si.WAVEService.wsWaveRegister]
 	or	ax,ax			; did we get a handle?
 	jz	@CTOUBAD		; no, bail out...
 
@@ -1765,12 +1678,12 @@ Proc    VesaOutput      near
         cmp     cs:[RecordMode],0       ; do a recording?
 	jnz	@CTOURB
 
-	call	es:[si.wsPlayBlock]	; start playback
+	call	es:[si.WAVEService.wsPlayBlock]	; start playback
 	neg	ax			; FFFF is now 1, 0 is now 0
 	jmp	short @CTOUBAD
     ;
     @CTOURB:
-	call	es:[si.wsRecordBlock]	; start a recording
+	call	es:[si.WAVEService.wsRecordBlock]	; start a recording
         neg     ax                      ; FFFF is now 1, 0 is now 0
 	jmp	short @CTOUBAD
 ;
@@ -1794,12 +1707,12 @@ Proc    VesaOutput      near
 	cmp	cs:[RecordMode],0	; do a recording?
 	jnz	@CTOURC
 
-        call    es:[si.wsPlayCont]      ; start playback
+        call    es:[si.WAVEService.wsPlayCont]      ; start playback
 	neg	ax			; FFFF is now 1, 0 is now 0
 	jmp	short @CTOUBAD
     ;
     @CTOURC:
-	call	es:[si.wsRecordCont]	; start a recording
+	call	es:[si.WAVEService.wsRecordCont]	; start a recording
         neg     ax                      ; FFFF is now 1, 0 is now 0
 ;
 @CTOUBAD:
@@ -1808,9 +1721,7 @@ Proc    VesaOutput      near
 @CTOU10:
 	pop	si
 	pop	es
-	pop	bp
 	ret
-
 VesaOutput	endp
 
 ;
@@ -1821,7 +1732,6 @@ VesaOutput	endp
 ;---|*|
 ;   \*/
 
-	public	VesaPause
 VesaPause       proc    near
         push    es
 	push	di
@@ -1834,14 +1744,13 @@ VesaPause       proc    near
 	push	ax			; push a NULL parameter
 
 	les	di,[ServicesPtr]	; get the services structure
-	call	es:[di.wsPauseIO]
+	call	es:[di.WAVEService.wsPauseIO]
 	inc	ax			; go from ffff to 0 or 0 to 01
 ;
 @CTPA05:
         pop     di
 	pop	es
 	ret
-
 VesaPause       endp
 
 ;
@@ -1852,9 +1761,7 @@ VesaPause       endp
 ;---|*|
 ;   \*/
 
-	public	VBECallback
 VBECallback     proc    far
-
 	SetSemaphore			; Set the inside DigPak semaphore
 
         push    ds
@@ -1881,9 +1788,9 @@ VBECallback     proc    far
 	push	ax			; huh?
 
         les     di,[ServicesPtr]        ; get the services structure
-	call	es:[di.wsWaveRegister]
+	call	es:[di.WAVEService.wsWaveRegister]
 
-	call	CheckCallback		; we only do single block, not
+	call	CheckCallBack		; we only do single block, not
 	popa				; continuous blocks needing CBs
 ;
 @VBECB05:
@@ -1892,7 +1799,6 @@ VBECallback     proc    far
 
         ClearSemaphore
         retf    14                      ; pascal style
-
 VBECallback     endp
 
 ;
@@ -1903,11 +1809,10 @@ VBECallback     endp
 ;---|*|
 ;   \*/
 
-	public	makelinear
 makelinear      proc    near
 	push	bx
 
- int 3
+ 	int 3
 
 	rol	dx,4
         mov     bx,dx                   ; convert it to a linear address
@@ -1918,19 +1823,17 @@ makelinear      proc    near
 
 	pop	bx
 	ret
-
 makelinear      endp
 
 ;
 ;   /*\
-;---|*|-----------------------====< reportDMAC >====---------------------------
+;---|*|-----------------------====< ReportDMAC >====---------------------------
 ;---|*|
 ;---|*|
 ;---|*|
 ;   \*/
 
-	public	reportDMAC
-reportDMAC      proc    near
+ReportDMAC      proc    near
 	push	bx
 	push	cx
 	push	dx
@@ -1948,7 +1851,7 @@ reportDMAC      proc    near
         push    ax
 
 	les	bx,cs:[ServicesPtr]	; get the services structure
-	call	es:[bx.wsDeviceCheck]
+	call	es:[bx.WAVEService.wsDeviceCheck]
 
 	mov	dx,cs:[blockoffset]	; get the ending offset
 	sub	dx,ax			; dx holds the total unused amount
@@ -1960,14 +1863,12 @@ reportDMAC      proc    near
 	pop	cx
 	pop	bx
 	ret
- 
-reportDMAC	endp
-
+ReportDMAC	endp
 
 ;; ***********************************************************************
 ;; ** Monochrome debugging code.
 ;; ***********************************************************************
- if MONOSCR
+if MONOSCR
 
 ;   /*\
 ;---|*|---------------------====< mono_output >====-------------------------
@@ -1978,7 +1879,6 @@ reportDMAC	endp
 ;---|*|
 ;   \*/
 
-	public	dbstr_table
 dbstr_table     label   word
 	dw	offset dbg_msg0 	;  0 DigPlay
 	dw	offset dbg_msg1 	;  1 Sound Status
@@ -2005,7 +1905,6 @@ dbstr_table     label   word
 	dw	offset dbg_msg16	; 22 Verify DMA block.
 	dw	offset dbg_msg17	; 23 Set PCM volume.
 	dw	offset dbg_msg18	; 24 report all registers
-
 
 dbg_msg0	db	'DigPlay     ',0
 dbg_msg1	db	'Sound Stat  ',0
@@ -2042,7 +1941,6 @@ DBG_DI		equ	00100000b
 DBG_BP		equ	01000000b
 DBG_ES		equ	10000000b
 
-	public	dbrstr_table
 dbrstr_table    label   word
 	dw	offset dbg_rax	; 0
 	dw	offset dbg_rbx	; 1
@@ -2080,7 +1978,7 @@ regwset ends
 ;
 ; mask indicating which registers to print on the screen
 ;
-	public	dbstr_regs
+
 dbstr_regs      label   word
 		dw	0				   ; DigPlay
 		dw	0				   ; Sound Status
@@ -2108,9 +2006,8 @@ dbstr_regs      label   word
 		dw	0				   ; Set PCM volume.
 		dw	DBG_AX+DBG_BX+DBG_CX+DBG_DX+DBG_SI+DBG_DI+DBG_ES
 
-DBG_PARM1       equ     <bp+_regAX+6>
+DBG_PARM1       equ     <bp.regwset._regAX+6>
 
-	.286
 ;   /*\
 ;---|*|-----------------------====< reportmono >====---------------------------
 ;---|*|
@@ -2118,7 +2015,6 @@ DBG_PARM1       equ     <bp+_regAX+6>
 ;---|*|
 ;   \*/
 
-	public	reportmono
 reportmono      proc    near ; mono screen output
 	pushf
         pusha
@@ -2154,56 +2050,56 @@ reportmono      proc    near ; mono screen output
 	sub	bx,bx
 	test	si,DBG_AX
 	jz	@F_01
-	mov	ax,[bp+_regAX]
+	mov	ax,[bp.regwset._regAX]
 	call	dbg_regreport
     ;
     @F_01:
 	inc	bx
 	test	si,DBG_BX
 	jz	@F_02
-	mov	ax,[bp+_regBX]
+	mov	ax,[bp.regwset._regBX]
 	call	dbg_regreport
     ;
     @F_02:
 	inc	bx
         test    si,DBG_CX
 	jz	@F_03
-	mov	ax,[bp+_regCX]
+	mov	ax,[bp.regwset._regCX]
 	call	dbg_regreport
     ;
     @F_03:
 	inc	bx
         test    si,DBG_DX
 	jz	@F_04
-	mov	ax,[bp+_regDX]
+	mov	ax,[bp.regwset._regDX]
 	call	dbg_regreport
     ;
     @F_04:
 	inc	bx
         test    si,DBG_SI
 	jz	@F_05
-	mov	ax,[bp+_regSI]
+	mov	ax,[bp.regwset._regSI]
 	call	dbg_regreport
     ;
     @F_05:
 	inc	bx
         test    si,DBG_DI
 	jz	@F_06
-	mov	ax,[bp+_regDI]
+	mov	ax,[bp.regwset._regDI]
 	call	dbg_regreport
     ;
     @F_06:
 	inc	bx
         test    si,DBG_BP
 	jz	@F_07
-	mov	ax,[bp+_regBP]
+	mov	ax,[bp.regwset._regBP]
 	call	dbg_regreport
     ;
     @F_07:
 	inc	bx
         test    si,DBG_ES
 	jz	@F_08
-	mov	ax,[bp+_regES]
+	mov	ax,[bp.regwset._regES]
 	call	dbg_regreport
     ;
     @F_08:
@@ -2212,9 +2108,7 @@ reportmono      proc    near ; mono screen output
 	popa
 	popf
         ret     2
-;
-;
-	public	dbg_regreport
+
 dbg_regreport   label   near
 	push	bx
 	shl	bx,1
@@ -2238,8 +2132,7 @@ dbg_regreport   label   near
 
         pop     bx
 	ret
-;
-	public	@dbg_nout
+
 @dbg_nout       label   near
 	push	ax
 	and	al,0Fh
@@ -2252,9 +2145,7 @@ dbg_regreport   label   near
 	stosw
 	pop	ax
 	ret
-;
-;
-	public	dbg_scroll
+
 dbg_scroll      label   near
 	push	ds
         push    cx
@@ -2276,9 +2167,7 @@ dbg_scroll      label   near
 	pop	cx
 	pop	ds
         ret
-;
-;
-	public	dbg_strout
+
 dbg_strout      label   near
 	push	ax
 	push	bx
@@ -2299,12 +2188,8 @@ dbg_strout      label   near
 	ret
 
 reportmono	endp
+endif
 
-	.8086
- endif
-
-
-        IDEAL
 ;   /*\
 ;---|*|----------------------=====================---------------------------
 ;---|*|----------------------====< THROWAWAY >====---------------------------
@@ -2312,7 +2197,7 @@ reportmono	endp
 ;---|*|----------------------=====================---------------------------
 ;   \*/
 
-LABEL	SUICIDE byte		;; Where to delete ourselves from memory
+SUICIDE LABEL	byte		;; Where to delete ourselves from memory
 
 hard    db      "VESA Wave Driver not found.",13,10,'$'
 msg0	db	"VESA Wave Audio DIGPAK Driver"
@@ -2336,9 +2221,7 @@ Installed       dw      0
 ;---|*|
 ;   \*/
 
-	public	LoadSound
-Proc    LoadSound near
-
+LoadSound	Proc    near
 	mov	ax,cs			;
 	mov	ds,ax			; establish data segment
 	mov	es,ax			; point ES to PSP
@@ -2410,9 +2293,7 @@ NoArg:
 @@HOP1:
 	Message msg0
 	DosTSR	SUICIDE 		; Terminate ourselves bud.
-
-        endp
-
+LoadSound        endp
 
 ;   /*\
 ;---|*|-------------------====< InstallInterrupt >====-------------------------
@@ -2420,10 +2301,8 @@ NoArg:
 ;---|*|
 ;   \*/
 
-	public	InstallInterupt
-Proc    InstallInterupt         far
+InstallInterupt Proc     far
 	IN_TSR
-
 	call	HardwareInit		; Initialize hardware.
 	or	ax,ax			; Error initializing hardware?
 	jnz	@@OUT
@@ -2432,14 +2311,12 @@ Proc    InstallInterupt         far
 	mov	[param+2],offset SoundInterupt ; offset of interupt routine
 	mov	[param+4],cs		; Our code segment.
 	PushEA	param			; push the address of the parameter list
-	call	InstallInt		; Install the interupt.
+	call	InstallINT		; Install the interupt.
 	add	sp,2			; clean up stack
 @@OUT:
-
 	OUT_TSR
 	ret
-	endp
-
+InstallInterupt endp
 
 ;   /*\
 ;---|*|-------------------====< DeInstallInterrupt >====-----------------------
@@ -2447,8 +2324,7 @@ Proc    InstallInterupt         far
 ;---|*|
 ;   \*/
 
-	public	DeInstallInterupt
-Proc    DeInstallInterupt       far
+DeInstallInterupt  Proc    far
 	IN_TSR
 	mov	[param],KINT		; Interupt requested to be unloaded.
 	PushEA	param			; pass parameter.
@@ -2456,8 +2332,7 @@ Proc    DeInstallInterupt       far
 	add	sp,2			; clean up stack
 	OUT_TSR
 	ret
-	endp
-
+DeInstallInterupt endp
 
 ;   /*\
 ;---|*|------------------------====< CheckIn >====-----------------------------
@@ -2465,22 +2340,21 @@ Proc    DeInstallInterupt       far
 ;---|*|
 ;   \*/
 
-	public	CheckIn
-Proc    CheckIn near
+CheckIn Proc    near
 	push	ds			; Save ds register.
 	push	si
 
 	mov	si,66h*4h		; get vector number
 	xor	ax,ax			; zero
 	mov	ds,ax			; point it there
-	lds	si,[ds:si]		; get address of interupt vector
+	lds	si,ds:[si]		; get address of interupt vector
 	or	si,si			; zero?
 	jz	@@CIOUT 		; exit if zero
 	sub	si,6			; point back to identifier
 
-	cmp	[word si],'IM'          ; Midi driver?
+	cmp	word ptr [si],'IM'          ; Midi driver?
 	jne	@@NEX
-	cmp	[word si+2],'ID'        ; full midi driver identity string?
+	cmp	word ptr [si+2],'ID'        ; full midi driver identity string?
 	jne	@@NEX
 ;
 ; Ok, a MIDI driver is loaded at this address.
@@ -2497,9 +2371,9 @@ Proc    CheckIn near
 	jmp short @@EXT
 ;
 @@NEX:
-	cmp	[word si],454Bh 	; equal?
+	cmp	word ptr [si],454Bh 	; equal?
 	jne	@@CIOUT 		; exit if not equal
-	cmp	[word si+2],4E52h	; equal?
+	cmp	word ptr [si+2],4E52h	; equal?
         jne     @@CIOUT
 ;
 @@OK:
@@ -2513,8 +2387,7 @@ Proc    CheckIn near
 @@CIOUT:
 	xor    ax,ax			; Zero return code.
 	jmp short @@EXT
-
-	endp
+CheckIn endp
 
 
 ;   /*\
@@ -2523,27 +2396,23 @@ Proc    CheckIn near
 ;---|*|
 ;   \*/
 
-	public	InstallINT
-Proc    InstallINT near
-	ARG	DATA:WORD
+InstallINT	CPROC MYDATA:WORD	
 ;
 ; Usage: IntallINT(&parms)
 ; offset 0: interupt
 ;	 2: offset of interupt code
 ;	 4: segment of interupt code
 ;
-        PENTER  0
 	PushCREGS
-
-	mov	bx,[DATA]		; Get address of parameter table
+	mov	bx,[MYDATA]		; Get address of parameter table
 	mov	ax,[bx] 		; get the interupt vector.
 	mov	di,ax			; save interupt vector into DI as well
 	mov	si,[bx+2]		; get offset
 	mov	ds,[bx+4]		; get segment.
 	mov	ah,35h			; Get interupt vector
 	int	21h			; Do DOS call to get vector.
-	mov	[ds:si-10],bx		; Save the old offset.
-	mov	[ds:si-8],es		; Save the old segment
+	mov	ds:[si-10],bx		; Save the old offset.
+	mov	ds:[si-8],es		; Save the old segment
         cld
         xor     ax,ax
         mov     es,ax
@@ -2555,12 +2424,11 @@ Proc    InstallINT near
 	stosw				; store it.
         sti
 	xor	ax,ax			; Success
-
 	PopCREGS
-	PLEAVE
+	nope
+	nope
 	ret
-	endp
-
+InstallINT	endp
 
 ;   /*\
 ;---|*|------------------------====< UnLoad >====------------------------------
@@ -2568,44 +2436,39 @@ Proc    InstallINT near
 ;---|*|
 ;   \*/
 
-	public	UnLoad
-Proc    UnLoad near
-	ARG	DATA:WORD
-
+UnLoad 	CPROC MYDATA:WORD
 ;
 ; Usage: UnLoad(&vector)
 ; Returns: AX = 0 success
 ;	   AX nonzero, couldn't unload interupt vector.
 ;
-
-        PENTER  0
 	PushCREGS
-
 	mov	ax,68Fh 		; Stop sound playback!
 	int	KINT			; Invoke interrupt.
 	WaitSound
 	mov	ax,692h 		; Deinstall hardware vectors.
 	int	KINT
 
-	mov	bx,[DATA]		; get address of interupt vector
+	mov	bx,[MYDATA]		; get address of interupt vector
 	mov	bx,[bx] 		; get the interupt vector.
 	mov	dx,bx			; put it into DX as well
 	ShiftL	bx,2			;
         xor     ax,ax
 	mov	ds,ax			; Segment zero
-	lds	si,[ds:bx]		; get address of interupt vector
+	lds	si,ds:[bx]		; get address of interupt vector
 	or	si,si			; zero?
 	jz	@@UOUT			; exit if zero
-	cmp	[WORD ds:si-2],524Bh	; 'KR' Is this a kernel installed interupt?
+	cmp	word ptr ds:[si-2],524Bh	; 'KR' Is this a kernel installed interupt?
 	push	ds			; save DS
 	mov	ax,dx			; Get interupt vector.
 	mov	ah,25h			; Do DOS 25h set interupt vector.
-	mov	dx,[ds:si-10]		; get old offset
-	mov	ds,[ds:si-8]		; get old segment
+	mov	dx,ds:[si-10]		; get old offset
+	mov	ds,ds:[si-8]		; get old segment
 	int	21h			; set interupt vector.
 	pop	ax			; get back segment of program.
         mov     es,ax
 	push	es
+	assume es:_TEXT
 	mov	es,[es:2Ch]		; Environment space.
 	mov	ah,49h
 	int	21h			; Free it up.
@@ -2615,14 +2478,14 @@ Proc    UnLoad near
 ;
 @@EXIT:
 	PopCREGS
-	PLEAVE
+	nope
+	nope
         ret
 ;
 @@UOUT:
 	mov	ax,1
 	jmp short @@EXIT
-
-	endp
+UnLoad	endp
 
 
 ;   /*\
@@ -2638,23 +2501,21 @@ _argc	dw	0			; The argument count
 _argv	dw	16  dup(0)		; Up to 16 arguments.
 command db	128 dup(?)
 
-	public	ParseCommandLine
-Proc    ParseCommandLine        near
-
+ParseCommandLine    Proc   near
 	mov	[_argc],0
-	cmp	[byte es:80h],2
+	cmp	[byte ptr es:80h],2
 	jb	@@END
 	xor	cx,cx
 	mov	cl,[es:80h]		; Get length.
 	SwapSegs
 	dec	cx			; Less one
-	lea	di,[command]
+	xlea	di,[command]
 	mov	si,82h
 	rep	movsb
 	push	cs
 	pop	ds
-	lea	di,[_argv]		; Argument list.
-	lea	si,[command]		; Start address.
+	xlea	di,[_argv]		; Argument list.
+	xlea	si,[command]		; Start address.
 ;
 @@SET:
 	inc	[_argc] 		; Increment argument counter.
@@ -2665,7 +2526,7 @@ Proc    ParseCommandLine        near
 	lodsb				; Get characters until we hit space of eol
 	cmp	al,32
 	jne	@@NEX2
-	mov	[byte ds:si-1],0	; Turn space into a zero byte.
+	mov	byte ptr ds:[si-1],0	; Turn space into a zero byte.
 	jmp short @@SET
 ;
 @@NEX2:
@@ -2675,11 +2536,11 @@ Proc    ParseCommandLine        near
 	jnz	@@NEX			; Keep skipping to next arg.
 ;
 @@END1:
-	mov	[byte ds:si-1],0	; Zero byte terminate last arg
+	mov	byte ptr ds:[si-1],0	; Zero byte terminate last arg
 ;
 @@END:
 	ret
-	endp
+ParseCommandLine endp
 
 ;   /*\
 ;---|*|----------------------====< HardwareInit >====--------------------------
@@ -2688,8 +2549,7 @@ Proc    ParseCommandLine        near
 ;---|*|
 ;   \*/
 
-	public	HardwareInit
-Proc    HardwareInit    near
+HardwareInit Proc near
 
  ;; int 3
 
@@ -2698,7 +2558,7 @@ Proc    HardwareInit    near
 ;
         xor     ax,ax                   ; success code by default.
 	call	VesaPresent
-	shr	ax,2			; Access to digitized sound?
+	ShiftR	ax,2			; Access to digitized sound?
 	mov	ax,1
 	jz	@@EXT			; bail if no digitized sound
 ;
@@ -2708,10 +2568,8 @@ Proc    HardwareInit    near
     ;
     @@EXT:
 	ret
+HardwareInit endp
 
-endp
-
-ends
+	db 8 dup(0)			;padding
 
 	end	START
-

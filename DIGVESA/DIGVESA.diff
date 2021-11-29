@@ -1,0 +1,58 @@
+218c218
+< 86B5:03A0  0D 0002				or	ax,2
+---
+> 86B5:03A0  83 C8 02				or	ax,2
+223c223
+< 86B5:03AD  0D 0004				or	ax,4
+---
+> 86B5:03AD  83 C8 04				or	ax,4
+227c227
+< 86B5:03B8  0D 0018				or	ax,18h
+---
+> 86B5:03B8  83 C8 18				or	ax,18h
+557c557
+< 86B5:06F8  3A DA				cmp	bl,dl
+---
+> 86B5:06F8  38 D3				cmp	bl,dl
+561c561,562
+< 86B5:06FE  8B E5				mov	sp,bp
+---
+> 86B5:06FE  90					nop
+> 86B5:06FF  90					nop
+787c788
+< 86B5:103F  2D 004F				sub	ax,4Fh
+---
+> 86B5:103F  83 E8 4F				sub	ax,4Fh
+798c799
+< 86B5:105E  2D 004F				sub	ax,4Fh
+---
+> 86B5:105E  83 E8 4F				sub	ax,4Fh
+852c853
+< 86B5:10D6  2D 004F				sub	ax,4Fh
+---
+> 86B5:10D6  83 E8 4F				sub	ax,4Fh
+882c883
+< 86B5:1119  2D 004F				sub	ax,4Fh
+---
+> 86B5:1119  83 E8 4F				sub	ax,4Fh
+1533,1534c1534
+< 86B5:1792  3D 0002				cmp	ax,2
+> 86B5:1792  83 F8 02				cmp	ax,2
+1560c1561
+< 86B5:17B9  3D 0002				cmp	ax,2
+---
+> 86B5:17B9  83 F8 02				cmp	ax,2
+1572c1573
+< 86B5:17CB  3D 0003				cmp	ax,3
+---
+> 86B5:17CB  83 F8 03				cmp	ax,3
+1768,1770c1769,1770
+< 86B5:18E6  8B E5				mov	sp,bp
+---
+> 86B5:18E6  90					nop
+> 86B5:18E7  90					nop
+1833c1835,1836
+< 86B5:1942  8B E5				mov	sp,bp
+---
+> 86B5:1942  90					nop
+> 86B5:1943  90					nop
