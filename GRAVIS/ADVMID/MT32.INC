@@ -109,15 +109,37 @@ MIDI_program    db NUM_CHANS dup (?)            ;program change # / channel
                 INCLUDE sbmidi.inc      ;Sound Blaster MIDI port
                 ENDIF
 
+reset_synth     	CPROTO                  
+init_synth      	CPROTO 
+add_sysex_addr  	CPROTO Addend:WORD,MSB:WORD,KSB:WORD,LSB:WORD
+send_MIDI_sysex 	CPROTO Src:FAR PTR,XType:WORD,Len:WORD  
+sysex_wait      	CPROTO Delay:WORD             
+write_system    	CPROTO Index:WORD,Value:WORD  
+write_rhythm_setup 	CPROTO Keynum:WORD,Offs:WORD,Value:WORD 
+write_patch     	CPROTO Patch:WORD,Index:WORD,Value:WORD,MySize:WORD  
+send_MIDI_message 	CPROTO Stat:WORD,D1:WORD,D2:WORD       
+index_timbre    	CPROTO GNum:WORD             
+setup_patch     	CPROTO Patch:WORD,Bank:WORD         
+describe_driver 	CPROTO H:WORD,IntRateProc:FAR PTR   
+send_sysex_msg  	CPROTO H:WORD,AddrA:WORD,AddrB:WORD,AddrC:WORD,MyData:FAR PTR,MySize:WORD,MyWait:WORD
+write_display   	CPROTO H:WORD,String:FAR PTR  
+send_cv_msg     	CPROTO H:WORD,Stat:WORD,D1:WORD,D2:WORD   
+protect_timbre  	CPROTO H:WORD,Bank:BYTE,Num:BYTE
+unprotect_timbre 	CPROTO H:WORD,Bank:BYTE,Num:BYTE        
+timbre_status   	CPROTO H:WORD,Bank:BYTE,Num:BYTE        
+get_cache_size  	CPROTO H:WORD
+define_cache    	CPROTO H:WORD,MyAddr:FAR PTR,MySize:WORD
+get_request     	CPROTO H:WORD,Sequence:WORD
+install_timbre  	CPROTO H:WORD,Bank:BYTE,Num:BYTE,MyAddr:FAR PTR
+
 ;****************************************************************************
 ;*                                                                          *
 ;*  MIDI interpreter and related procedures                                 *
 ;*                                                                          *
 ;****************************************************************************
 
-reset_synth     PROC                   
-                LOCAL chan, cont_chg                ;Channel num
-                USES ds,si,di
+reset_synth     CPROC USES DS SI DI                  
+                LOCAL chan:WORD, cont_chg:WORD                ;Channel num
                 pushf                
                 cli
 
@@ -126,23 +148,22 @@ __reset_loop:
 		mov ax, 0b0h
 		or  ax, chan
 		mov cont_chg, ax
-                call send_MIDI_message C,cont_chg,121,0 ; reset all controllers
-		call send_MIDI_message C,cont_chg,120,0  ; all sounds off
-		call send_MIDI_message C,cont_chg,100,0  ; RPN 0 = 0
-		call send_MIDI_message C,cont_chg,101,0  ; select PBS
-		call send_MIDI_message C,cont_chg,6,2  ; pitch bend sensitivity
-		call send_MIDI_message C,cont_chg,38,0  ; pitch bend sensitivity
+                INVOKE send_MIDI_message,cont_chg,121,0 ; reset all controllers
+		INVOKE send_MIDI_message,cont_chg,120,0  ; all sounds off
+		INVOKE send_MIDI_message,cont_chg,100,0  ; RPN 0 = 0
+		INVOKE send_MIDI_message,cont_chg,101,0  ; select PBS
+		INVOKE send_MIDI_message,cont_chg,6,2  ; pitch bend sensitivity
+		INVOKE send_MIDI_message,cont_chg,38,0  ; pitch bend sensitivity
 		sub chan,1
 		jnc __reset_loop
 
                 POP_F
                 ret
-                ENDP
+reset_synth     ENDP
 
 ;****************************************************************************
-init_synth      PROC
-		LOCAL chan, cont_chg
-                USES ds,si,di
+init_synth      CPROC USES DS SI DI
+		LOCAL chan:WORD, cont_chg:WORD
                 pushf           
                 cli
 
@@ -151,12 +172,12 @@ __reset_loop:
 		mov ax, 0b0h
 		or  ax, chan
 		mov cont_chg, ax
-                call send_MIDI_message C,cont_chg,121,0 ; reset all controllers
-		call send_MIDI_message C,cont_chg,120,0  ; all sounds off
-		call send_MIDI_message C,cont_chg,100,0  ; RPN 0 = 0
-		call send_MIDI_message C,cont_chg,101,0  ; select PBS
-		call send_MIDI_message C,cont_chg,6,2  ; pitch bend sensitivity
-		call send_MIDI_message C,cont_chg,38,0  ; pitch bend sensitivity
+                INVOKE send_MIDI_message,cont_chg,121,0 ; reset all controllers
+		INVOKE send_MIDI_message,cont_chg,120,0  ; all sounds off
+		INVOKE send_MIDI_message,cont_chg,100,0  ; RPN 0 = 0
+		INVOKE send_MIDI_message,cont_chg,101,0  ; select PBS
+		INVOKE send_MIDI_message,cont_chg,6,2  ; pitch bend sensitivity
+		INVOKE send_MIDI_message,cont_chg,38,0  ; pitch bend sensitivity
 		sub chan,1
 		jnc __reset_loop
 
@@ -191,15 +212,13 @@ __init_patches: mov patch_bank[di],0
 
                 POP_F
                 ret
-                ENDP
+init_synth      ENDP
 
 ;****************************************************************************
-add_sysex_addr  PROC Addend,MSB:BYTE,KSB:BYTE,LSB:BYTE
-                USES ds,si,di                   ;Add value to 21-bit address
-
-                mov al,[LSB]
-                mov bl,[KSB]
-                mov cl,[MSB]
+add_sysex_addr  CPROC USES DS SI DI Addend:WORD,MSB:WORD,KSB:WORD,LSB:WORD
+                mov al,BYTE PTR[LSB]
+                mov bl,BYTE PTR[KSB]
+                mov cl,BYTE PTR[MSB]
                 mov ah,0
                 mov bh,0
                 mov ch,0
@@ -222,17 +241,16 @@ __store_sum:    mov ah,bl
                 mov dl,cl
                 mov dh,0
                 ret     
-                ENDP
+add_sysex_addr  ENDP
 
 ;****************************************************************************
-send_MIDI_sysex PROC Src:FAR PTR,Type,Len
-                USES ds,si,di           ;Send MIDI System Exclusive message
+send_MIDI_sysex CPROC USES DS SI DI Src:FAR PTR,XType:WORD,Len:WORD  ;Send MIDI System Exclusive message
                 cld
 
-                cmp [Type],0f0h         ;F0 type?
+                cmp [XType],0f0h         ;F0 type?
                 jne __get_msg_len       ;no, don't send explicit F0
 
-                call send_byte C,0f0h
+                INVOKE send_byte,0f0h
 
 __get_msg_len:  lds si,[Src]
                 mov cx,[Len]            ;get length
@@ -240,17 +258,16 @@ __get_msg_len:  lds si,[Src]
 
 __send_bytes:   push cx
                 lodsb
-                call send_byte C,ax
+                INVOKE send_byte,ax
                 pop cx
                 loop __send_bytes
 
 __exit:         ret
-                ENDP
+send_MIDI_sysex ENDP
 
 ;****************************************************************************
-sysex_wait      PROC Delay              ;Delay after System Exclusive message
-                USES ds,si,di           ;transmissions
-
+sysex_wait      CPROC USES DS SI DI Delay:WORD              ;Delay after System Exclusive message
+                                        ;transmissions
                 mov ax,40h              ;wait n VBL periods (14 ms/period min, 
                 mov ds,ax               ;requires CGA/EGA/VGA/XGA video)
 
@@ -271,66 +288,55 @@ __sync_2:       in al,dx
                 loop __sync_1
 
 __exit:         ret
-                ENDP
+sysex_wait      ENDP
 
 ;****************************************************************************
-write_system    PROC Index,Value 
-                USES ds,si,di           ;Write value to System area
-                                        ;(Warning: No delay!)
-                mov ax,[Index]
-                lea bx,[Value]  
-                call send_sysex_msg C,0,10h,0,ax,bx,ss,1,0      
-
+write_system    CPROC USES DS SI DI Index:WORD,Value:WORD          ;Write value to System area
+                 			                           ;(Warning: No delay!)
+		mov ax,[Index]
+		lea bx,[Value]  
+                INVOKE send_sysex_msg,0,10h,0,ax,ss::bx,1,0      
                 ret
-                ENDP
+write_system    ENDP
 
 ;****************************************************************************
-write_rhythm_setup PROC Keynum,Offset,Value
-                USES ds,si,di           ;Write value to Rhythm Setup area
+write_rhythm_setup CPROC USES DS SI DI Keynum:WORD,Offs:WORD,Value:WORD    ;Write value to Rhythm Setup area
+		mov ax,[Keynum]
+		sub ax,24
+		shl ax,1
+		shl ax,1
+		add ax,[Offs]
+		INVOKE add_sysex_addr,ax,3,1,16
 
-	mov ax,[Keynum]
-	sub ax,24
-	shl ax,1
-	shl ax,1
-	add ax,[Offset]
-	call add_sysex_addr C,ax,3,1,16
-
-	mov cl,ah
+		mov cl,ah
+		lea bx,[Value]
 		
-                lea bx,[Value]
-                call send_sysex_msg C,0,dx,cx,ax,bx,ss,1,4
-
+                INVOKE send_sysex_msg,0,dx,cx,ax,ss::bx,1,4
                 ret
-                ENDP
+write_rhythm_setup ENDP
 
 ;****************************************************************************
-write_patch     PROC Patch,Index,Value,Size
-                USES ds,si,di           ;Write byte or word to Patch area
-
+write_patch     CPROC USES DS SI DI Patch:WORD,Index:WORD,Value:WORD,MySize:WORD       ;Write byte or word to Patch area
                 mov ax,[Patch]
                 shl ax,1
                 shl ax,1
                 shl ax,1
                 add ax,[Index]
-                call add_sysex_addr C,ax,5,0,0
+                INVOKE add_sysex_addr,ax,5,0,0
 
-	mov cl,ah
-		
+		mov cl,ah		
                 lea bx,[Value]
-                call send_sysex_msg C,0,dx,cx,ax,bx,ss,[Size],2
 
+                INVOKE send_sysex_msg,0,dx,cx,ax,ss::bx,[MySize],2
 __exit:         ret
-                ENDP
+write_patch     ENDP
 
 ;****************************************************************************
-send_MIDI_message PROC Stat:BYTE,D1:BYTE,D2:BYTE       
-                LOCAL op                ;Send MIDI Channel Voice message
-                USES ds,si,di           
-                NOJUMPS
-
-                mov si,WORD PTR [D1]
+send_MIDI_message CPROC USES DS SI DI Stat:WORD,D1:WORD,D2:WORD       
+                LOCAL op:WORD                ;Send MIDI Channel Voice message
+                mov si,[D1]
                 and si,0ffh             ;SI=data 1 / controller #
-                mov di,WORD PTR [Stat]
+                mov di,[Stat]
                 mov ax,di               
                 and di,00fh             ;DI=channel
 
@@ -354,18 +360,16 @@ send_MIDI_message PROC Stat:BYTE,D1:BYTE,D2:BYTE
                 mov timb_hist_l[bx],ax
                 mov timb_hist_h[bx],dx
 
-__send:         mov di,WORD PTR [Stat]
-                call send_byte C,di
-                call send_byte C,si
+__send:         mov di,[Stat]
+                INVOKE send_byte,di
+                INVOKE send_byte,si
                 and di,0f0h
                 cmp di,0c0h
                 je __exit
                 cmp di,0d0h
                 je __exit
-                call send_byte C,WORD PTR [D2]
+                INVOKE send_byte,[D2]
 __exit:         ret
-
-                JUMPS
 
 __go_cc:        jmp __ctrl_change
 
@@ -377,10 +381,10 @@ __prg_change:   mov ax,si               ;log current patch for channel
 
                 push ax                 ;else send sysex message to associate
                 mov al,ah               ;patch with timbre
-                call setup_patch C,si,ax
+                INVOKE setup_patch,si,ax
                 pop ax
 
-__set_index:    call index_timbre C,ax
+__set_index:    INVOKE index_timbre,ax
                 mov chan_timbs[di],al
                 jmp __send
 
@@ -400,8 +404,8 @@ __ctrl_change:  cmp si,SYSEX_RANGE_BEG
                 je __rev_lvl
                 cmp si,PATCH_BANK_SEL
                 je __t_bank
-	cmp si,RHYTHM_KEY_TIMB
-	je __r_t_sel
+		cmp si,RHYTHM_KEY_TIMB
+		je __r_t_sel
                 cmp si,TIMBRE_PROTECT
                 je __t_prot
                 
@@ -423,7 +427,7 @@ __t_prot:       mov bl,chan_timbs[di]
 __tprot:        mov timb_attribs[bx],al
                 jmp __exit
 
-__t_bank:       mov al,[D2]
+__t_bank:       mov al,BYTE PTR [D2]
                 mov MIDI_bank[di],al
                 jmp __exit
 
@@ -432,11 +436,11 @@ __p_rev:        mov al,MIDI_program[di]
                 cmp al,-1
                 je __exit
                 push ax
-                call write_patch C,ax,6,WORD PTR [D2],1
+                INVOKE write_patch,ax,6,[D2],1
                 or di,0c0h
-                call send_byte C,di
+                INVOKE send_byte,di
                 pop ax
-                call send_byte C,ax
+                INVOKE send_byte,ax
                 jmp __exit
 
 __p_b_range:    mov al,MIDI_program[di]
@@ -444,26 +448,26 @@ __p_b_range:    mov al,MIDI_program[di]
                 cmp al,-1
                 je __exit
                 push ax
-                call write_patch C,ax,4,WORD PTR [D2],1
+                INVOKE write_patch,ax,4,[D2],1
                 or di,0c0h
-                call send_byte C,di
+                INVOKE send_byte,di
                 pop ax
-                call send_byte C,ax
+                INVOKE send_byte,ax
                 jmp __exit
 
-__rev_mode:     call write_system C,1,WORD PTR [D2]
+__rev_mode:     INVOKE write_system,1,[D2]
                 jmp __exit
-__rev_time:     call write_system C,2,WORD PTR [D2]
+__rev_time:     INVOKE write_system,2,[D2]
                 jmp __exit
-__rev_lvl:      call write_system C,3,WORD PTR [D2]
+__rev_lvl:      INVOKE write_system,3,[D2]
                 jmp __exit
 
 __r_t_sel:      mov al,chan_timbs[di]
                 cmp al,-1
                 je __exit
                 mov ah,0
-	call write_rhythm_setup C,WORD PTR [D2],0,ax
-	jmp __exit
+		INVOKE write_rhythm_setup,[D2],0,ax
+		jmp __exit
 
 __sysex:        sub si,SYSEX_RANGE_BEG
                 mov ax,si
@@ -472,7 +476,7 @@ __sysex:        sub si,SYSEX_RANGE_BEG
                 div cx    
                 mov op,dx
                 mov bx,ax
-                mov al,[D2]             ;BX=queue #, AL=data, DX=operation
+                mov al,BYTE PTR [D2]             ;BX=queue #, AL=data, DX=operation
                 cmp dx,0
                 je __set_MSB
                 cmp dx,1
@@ -487,7 +491,7 @@ __sysex:        sub si,SYSEX_RANGE_BEG
                 add al,queue_ptrs[bx]
                 adc ah,0
                 mov si,ax               ;SI = pointer to last byte
-                mov al,[D2]
+                mov al,BYTE PTR [D2]
                 mov cs:[si],al
 
                 cmp op,3
@@ -499,18 +503,15 @@ __send_queue:   mov al,queue_ptrs[bx]   ;else send message
                 mov si,ax               ;SI = len
                 xchg di,bx              ;DI = queue #, CS:BX = base address
 
-                call send_sysex_msg C,0,WORD PTR M_ad[di],WORD PTR K_ad[di],\
-                     WORD PTR L_ad[di],bx,cs,si,0
-
+                INVOKE send_sysex_msg,0,M_ad[di],K_ad[di],L_ad[di],cs::bx,si,0
                 cmp op,3                ;was this an overflow dump?
                 jne __address_byte      
 
-                call sysex_wait C,4     ;yes, do an automatic wait of 4
+                INVOKE sysex_wait,4     ;yes, do an automatic wait of 4
                 jmp __overflowed        ;VBL intervals
 
 __address_byte: dec si                  ;SI=len-1
-__overflowed:   call add_sysex_addr C,si,WORD PTR M_ad[di],WORD PTR K_ad[di],\
-                     WORD PTR L_ad[di]
+__overflowed:   INVOKE add_sysex_addr,si,WORD PTR M_ad[di],WORD PTR K_ad[di], WORD PTR L_ad[di]
                
                 mov L_ad[di],al         ;add (qlen-1) to sysex start address,
                 mov K_ad[di],ah         ;so future Final Byte controllers will
@@ -520,7 +521,7 @@ __overflowed:   call add_sysex_addr C,si,WORD PTR M_ad[di],WORD PTR K_ad[di],\
                 jmp __exit
 
 __bump_ptr:     cmp queue_ptrs[bx],SYSEX_SIZE-1
-	jae __send_queue	;dump queue if overflow occurs
+		jae __send_queue	;dump queue if overflow occurs
                 inc queue_ptrs[bx]
                 jmp __exit
 
@@ -531,12 +532,10 @@ __set_KSB:      mov K_ad[bx],al
 __set_LSB:      mov L_ad[bx],al
                 jmp __exit
 
-                ENDP
+send_MIDI_message ENDP
 
 ;****************************************************************************
-index_timbre    PROC GNum               ;Get global timbre's local index 0-63 
-                USES ds,si,di
-
+index_timbre    CPROC USES DS SI DI GNum:WORD               ;Get global timbre's local index 0-63 
                 mov si,0
                 mov ax,[GNum]   
 __find_gnum:    test timb_attribs[si],10000000b
@@ -553,22 +552,20 @@ __find_next:    inc si
 
 __found:        mov ax,si
                 ret
-                ENDP
+index_timbre    ENDP
 
 ;****************************************************************************
-setup_patch     PROC Patch:BYTE,Bank:BYTE         
-                USES ds,si,di           ;Establish patch's timbre setting
-
-                mov bl,[Patch]
+setup_patch     CPROC USES DS SI DI Patch:WORD,Bank:WORD         
+                mov bl,BYTE PTR [Patch]
                 mov bh,0
-                mov ah,[Bank]
+                mov ah,BYTE PTR [Bank]
                 mov patch_bank[bx],ah   ;log timbre bank # for patch
 
                 cmp ah,0
                 je __bank_0             ;bank 0 = built-in Roland timbres
 
                 mov al,bl
-                call index_timbre C,ax  ;see if timbre loaded
+                INVOKE index_timbre,ax  ;see if timbre loaded
                 cmp ax,-1
                 je __bank_0             ;timbre not loaded, use default
 
@@ -576,16 +573,16 @@ setup_patch     PROC Patch:BYTE,Bank:BYTE
                 mov al,2                ;select MEMORY (timbre group 2)
                 jmp __send
 
-__bank_0:       mov ah,[Patch]          ;restore default Roland timbre...
+__bank_0:       mov ah,BYTE PTR [Patch]          ;restore default Roland timbre...
                 mov al,0
                 cmp ah,64               ;set GROUP A if patch # < 64
                 sbb al,-1               ;set GROUP B if patch # >= 64
                 and ah,63               ;set TIMBRE NUMBER 0-63
-
-__send:         call write_patch C,WORD PTR [Patch],0,ax,2
+			
+__send:         INVOKE write_patch,[Patch],0,ax,2
 
 __exit:         ret                   
-                ENDP            
+setup_patch     ENDP            
 
 ;****************************************************************************
 ;*                                                                          *
@@ -593,8 +590,7 @@ __exit:         ret
 ;*                                                                          *
 ;****************************************************************************
 
-describe_driver PROC H,IntRateProc:FAR PTR    
-                USES ds,si,di           ;Return far ptr to DDT
+describe_driver CPROC USES DS SI DI H:WORD,IntRateProc:FAR PTR      ;Return far ptr to DDT
                 pushf
                 cli
 
@@ -604,35 +600,33 @@ describe_driver PROC H,IntRateProc:FAR PTR
 
                 POP_F
                 ret
-                ENDP
+describe_driver ENDP
 
 ;****************************************************************************
-send_sysex_msg  PROC H,AddrA:BYTE,AddrB:BYTE,AddrC:BYTE,Data:FAR PTR,Size,Wait
-                USES ds,si,di           
-
+send_sysex_msg  CPROC USES DS SI DI H:WORD,AddrA:WORD,AddrB:WORD,AddrC:WORD,MyData:FAR PTR,MySize:WORD,MyWait:WORD
                 pushf
                 cli
 
-                call send_byte C,0f0h   ;transmit Roland MT-32 header
-                call send_byte C,041h
-                call send_byte C,010h
-                call send_byte C,016h
-                call send_byte C,012h
+                INVOKE send_byte,0f0h   ;transmit Roland MT-32 header
+                INVOKE send_byte,041h
+                INVOKE send_byte,010h
+                INVOKE send_byte,016h
+                INVOKE send_byte,012h
 
-                call send_byte C,WORD PTR [AddrA]
-                call send_byte C,WORD PTR [AddrB]
-                call send_byte C,WORD PTR [AddrC]
+                INVOKE send_byte,[AddrA]
+                INVOKE send_byte,[AddrB]
+                INVOKE send_byte,[AddrC]
 
-                mov al,[AddrA]          ;init checksum
+                mov al,BYTE PTR [AddrA]          ;init checksum
                 mov ah,0
-                add al,[AddrB]
+                add al,BYTE PTR [AddrB]
                 adc ah,0
-                add al,[AddrC]
+                add al,BYTE PTR [AddrC]
                 adc ah,0
                 mov chksum,ax
 
-                les di,[Data]           ;send each message byte
-                mov si,[Size]
+                les di,[MyData]           ;send each message byte
+                mov si,[MySize]
 __send_data:    or si,si
                 jz __send_chksum
                 dec si
@@ -640,7 +634,7 @@ __send_data:    or si,si
                 mov al,es:[di]
                 inc di
                 add chksum,ax
-                call send_byte C,ax
+                INVOKE send_byte,ax
                 jmp __send_data
 
 __send_chksum:  mov ax,chksum           
@@ -648,20 +642,18 @@ __send_chksum:  mov ax,chksum
                 sub al,80h
                 neg al
                 and ax,7fh
-                call send_byte C,ax     ;send the checksum byte
+                INVOKE send_byte,ax     ;send the checksum byte
 
-                call send_byte C,0f7h   ;send EOX terminator
+                INVOKE send_byte,0f7h   ;send EOX terminator
 
-                call sysex_wait C,[Wait]
+                INVOKE sysex_wait,[MyWait]
 
                 POP_F
                 ret
-                ENDP
+send_sysex_msg  ENDP
 
 ;****************************************************************************
-write_display   PROC H,String:FAR PTR   ;Write string to display (unless NULL)
-                USES ds,si,di
-
+write_display   CPROC USES DS SI DI H:WORD,String:FAR PTR   ;Write string to display (unless NULL)
                 pushf
                 cli
 
@@ -686,30 +678,25 @@ __pad_string:   lodsb
                 stosb
                 loop __pad_string
 
-__show_it:      call send_sysex_msg C,0,20h,00h,00h,\
-                     OFFSET string_buf,cs,display_size,4
+__show_it:      INVOKE send_sysex_msg,0,20h,00h,00h,ADDR string_buf,display_size,4
 
 __end_write:    POP_F
                 ret
-                ENDP
+write_display   ENDP
 
 ;****************************************************************************
-send_cv_msg     PROC H,Stat,D1,D2       ;Send an explicit Channel Voice msg
-                USES ds,si,di
-
+send_cv_msg     CPROC USES DS SI DI H:WORD,Stat:WORD,D1:WORD,D2:WORD       ;Send an explicit Channel Voice msg
                 pushf
                 cli
 
-                call send_MIDI_message C,[Stat],[D1],[D2]
+                INVOKE send_MIDI_message,[Stat],[D1],[D2]
 
                 POP_F
                 ret
-                ENDP
+send_cv_msg     ENDP
 
 ;****************************************************************************
-protect_timbre  PROC H,Bank:BYTE,Num:BYTE
-                USES ds,si,di           ;Protect a timbre from replacement
-
+protect_timbre  CPROC USES DS SI DI H:WORD,Bank:BYTE,Num:BYTE
                 pushf
                 cli
 
@@ -719,7 +706,7 @@ protect_timbre  PROC H,Bank:BYTE,Num:BYTE
                 cmp ax,-1
                 je __prot_all
 
-                call index_timbre C,ax
+                INVOKE index_timbre,ax
                 cmp ax,-1
                 je __exit               ;timbre not loaded, can't protect it
 
@@ -735,12 +722,10 @@ __prot_timb:    or timb_attribs[bx],01000000b
 
 __exit:         POP_F
                 ret
-                ENDP
+protect_timbre  ENDP
 
 ;****************************************************************************
-unprotect_timbre PROC H,Bank:BYTE,Num:BYTE            
-                USES ds,si,di           ;Allow a timbre to be replaced
-
+unprotect_timbre CPROC USES DS SI DI H:WORD,Bank:BYTE,Num:BYTE          ;Allow a timbre to be replaced
                 pushf 
                 cli
 
@@ -750,7 +735,7 @@ unprotect_timbre PROC H,Bank:BYTE,Num:BYTE
                 cmp ax,-1
                 je __unprot_all
 
-                call index_timbre C,ax
+                INVOKE index_timbre,ax
                 cmp ax,-1
                 je __exit               ;timbre not loaded, can't unprotect it
 
@@ -766,12 +751,10 @@ __unprot_timb:  and timb_attribs[bx],10111111b
 
 __exit:         POP_F
                 ret
-                ENDP
+unprotect_timbre ENDP
 
 ;****************************************************************************
-timbre_status   PROC H,Bank:BYTE,Num:BYTE            
-                USES ds,si,di           ;Return 0 if timbre not resident
-
+timbre_status   CPROC USES DS SI DI H:WORD,Bank:BYTE,Num:BYTE          ;Return 0 if timbre not resident
                 pushf 
                 cli
 
@@ -782,18 +765,16 @@ timbre_status   PROC H,Bank:BYTE,Num:BYTE
                 cmp ah,127              ;timbres present
                 je __OK                 
 
-                call index_timbre C,ax
+                INVOKE index_timbre,ax
 
 __OK:           inc ax                  ;0 if -1, else local cache index
 
                 POP_F
                 ret
-                ENDP
+timbre_status   ENDP
 
 ;****************************************************************************
-get_cache_size  PROC H
-                USES ds,si,di
-
+get_cache_size  CPROC USES DS SI DI H:WORD
                 pushf
                 cli
 
@@ -801,19 +782,15 @@ get_cache_size  PROC H
 
                 POP_F
                 ret
-                ENDP
+get_cache_size  ENDP
 
 ;****************************************************************************
-define_cache    PROC H,Addr:FAR PTR,Size
-                USES ds,si,di
-
+define_cache    CPROC USES DS SI DI H:WORD,MyAddr:FAR PTR,MySize:WORD
                 ret
-                ENDP
+define_cache    ENDP
 
 ;****************************************************************************
-get_request     PROC H,Sequence
-                USES ds,si,di
-
+get_request     CPROC USES DS SI DI H:WORD,Sequence:WORD
                 pushf
                 cli
 
@@ -822,13 +799,13 @@ get_request     PROC H,Sequence
                 je __no_request
                 lds si,sequence_state[si]
 
-                cmp WORD PTR [si].TIMB+2,0
+                cmp WORD PTR [si].state_table.TIMB+2,0
                 je __no_request         ;no requested timbres, exit
 
-                lds si,[si].TIMB        ;make sure TIMB chunk is present
-                cmp [si],'IT'
+                lds si,[si].state_table.TIMB        ;make sure TIMB chunk is present
+                cmp WORD PTR [si],'IT'
                 jne __no_request        ;if not, no requests are possible
-                cmp [si+2],'BM'
+                cmp WORD PTR [si+2],'BM'
                 jne __no_request
 
                 add si,8
@@ -839,7 +816,7 @@ __chk_index:    add si,2
                 je __next_index         ;timbres.... don't request
                 cmp ah,127              ;bank 127 reserved for melodic-mode 
                 je __next_index         ;rhythm sounds.... don't request
-                call index_timbre C,[si]
+                INVOKE index_timbre,[si]
                 cmp ax,-1               ;timbre in local cache?
                 je __request            ;no, request it
 __next_index:   dec di
@@ -853,13 +830,11 @@ __no_request:   mov ax,-1
                 
 __exit:         POP_F
                 ret
-                ENDP
+get_request     ENDP
 
 ;****************************************************************************
-install_timbre  PROC H,Bank:BYTE,Num:BYTE,Addr:FAR PTR
-                LOCAL sys_seg,sys_dest
-                USES ds,si,di
-
+install_timbre  CPROC USES DS SI DI H:WORD,Bank:BYTE,Num:BYTE,MyAddr:FAR PTR
+                LOCAL sys_seg:WORD,sys_dest:WORD
                 pushf
                 cli
 
@@ -871,12 +846,12 @@ install_timbre  PROC H,Bank:BYTE,Num:BYTE,Addr:FAR PTR
                 cmp ah,127              ;bank 127 reserved for melodic mode
                 je __exit               ;rhythm sounds -- don't install
 
-                call index_timbre C,ax
+                INVOKE index_timbre,ax
                 cmp ax,-1
                 jne __set_patch         ;timbre already resident, index it
 
-                mov ax,WORD PTR [Addr]
-                or ax,WORD PTR [Addr+2]
+                mov ax,WORD PTR [MyAddr]
+                or ax,WORD PTR [MyAddr+2]
                 jz __exit
 
                 mov si,0                ;else look for an empty timbre slot
@@ -926,10 +901,10 @@ __found:        mov bx,si               ;found free/LRU timbre, update its
                 mov timb_bank[si],ah    ;mark timbre "in use/unprotected"
                 mov timb_attribs[si],10000000b                  
 
-                cmp WORD PTR [Addr+2],0
+                cmp WORD PTR [MyAddr+2],0
                 je __exit               ;(NULL pointer = placeholder)
 
-                les di,[Addr]
+                les di,[MyAddr]
                 add di,2                ;skip timbre length prefix (norm. $F6)
 
                 mov ax,si               ;set up to send timbre dump to Roland
@@ -937,25 +912,28 @@ __found:        mov bx,si               ;found free/LRU timbre, update its
 
                 mov sys_seg,es          ;send common parameter
                 mov sys_dest,ax
-                call send_sysex_msg C,0,8,sys_dest,0,di,sys_seg,0eh,3
-
+;                INVOKE send_sysex_msg,0,8,sys_dest,0,di,sys_seg,0eh,3
+                INVOKE send_sysex_msg,0,8,sys_dest,0,es::di,0eh,3
+                mov es,sys_seg 
                 add di,0eh              ;send partial parameter #1
-                call send_sysex_msg C,0,8,sys_dest,0eh,di,sys_seg,3ah,3
-
+;                INVOKE send_sysex_msg,0,8,sys_dest,0eh,di,sys_seg,3ah,3
+                INVOKE send_sysex_msg,0,8,sys_dest,0eh,es::di,3ah,3
+                mov es,sys_seg 
                 add di,3ah              ;send partial parameter #2
-                call send_sysex_msg C,0,8,sys_dest,48h,di,sys_seg,3ah,3
-
+;                INVOKE send_sysex_msg,0,8,sys_dest,48h,di,sys_seg,3ah,3
+                INVOKE send_sysex_msg,0,8,sys_dest,48h,es::di,3ah,3
+                mov es,sys_seg 
                 add di,3ah              ;send partial parameter #3
                 inc sys_dest
-                call send_sysex_msg C,0,8,sys_dest,2,di,sys_seg,3ah,3
-
+;                INVOKE send_sysex_msg,0,8,sys_dest,2,di,sys_seg,3ah,3
+                INVOKE send_sysex_msg,0,8,sys_dest,2,es::di,3ah,3
+                mov es,sys_seg 
                 add di,3ah              ;send partial parameter #4
-                call send_sysex_msg C,0,8,sys_dest,3ch,di,sys_seg,3ah,3
-
-__set_patch:    call setup_patch C,WORD PTR [Num],WORD PTR [Bank]
+;                INVOKE send_sysex_msg,0,8,sys_dest,3ch,di,sys_seg,3ah,3
+                INVOKE send_sysex_msg,0,8,sys_dest,3ch,es::di,3ah,3
+                mov es,sys_seg 
+__set_patch:    INVOKE setup_patch,WORD PTR [Num],WORD PTR [Bank]
 
 __exit:         POP_F
-                ret
-                ENDP
-
-
+	  	ret
+install_timbre  ENDP

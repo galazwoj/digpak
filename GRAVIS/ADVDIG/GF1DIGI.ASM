@@ -88,8 +88,8 @@ DAC_BUFF_REGISTERED equ 4
                 ;
                 ;Macros, internal equates
                 ;
-                INCLUDE ALL.MAC
-                INCLUDE ALL.INC
+                INCLUDE AIL.MAC
+                INCLUDE AIL.INC
 		INCLUDE ULTMIDI.INC
 
 VOC_MODE        equ 0                   ;Creative Voice File playback mode

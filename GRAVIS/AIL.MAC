@@ -21,7 +21,8 @@
 ;лллллллллллллллллллллллллллллллллллллллллллллллллллллллллллллллллллллллллллл
 
 FAR_TO_HUGE     MACRO fp_seg,fp_off             ;normalize far pointer
-                push ax bx             
+                push ax 
+		push bx             
                 mov ax,fp_seg
                 mov bx,fp_off
                 shr bx,1
@@ -31,7 +32,8 @@ FAR_TO_HUGE     MACRO fp_seg,fp_off             ;normalize far pointer
                 add ax,bx
                 mov fp_seg,ax
                 and fp_off,0fh
-                pop bx ax
+                pop bx 
+		pop ax
                 ENDM
 
 ADD_PTR         MACRO add_l,add_h,pseg,poff     ;add 32-bit dword to far ptr

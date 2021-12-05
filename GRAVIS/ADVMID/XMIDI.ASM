@@ -37,8 +37,20 @@
 ;[[   (512) 345-2642 / FAX (512) 338-9630 / BBS (512) 454-9990             [[
 ;[[                                                                        [[
 ;[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[
+; Not binary compatible with tasm
+;   jumps generated differently
+;   invoke generates different code
+;   pop_f macro nonsense removed
+;   add, sp -x generated instead of sub sp, x
+
 
                 .MODEL TINY,C          ;Procedures far, data near by default
+		ASSUME CS:_TEXT, DS:NOTHING, ES:NOTHING, SS:NOTHING	
+
+CPROC 		equ	<PROC  FAR C >
+CPROTO 		equ	<PROTO FAR C >
+LPROC 		equ	<PROC  NEAR C PRIVATE>
+LPROTO 		equ	<PROTO NEAR C>
 
                 ;
                 ;Configuration equates
@@ -114,7 +126,7 @@ SPKR            equ 1
 NUM_CHANS       equ 16                  ;# of MIDI channels
 
                 .CODE
-
+		.186
                 dw OFFSET driver_index
                 db 'Copyright (C) 1991,1992 Miles Design, Inc.',01ah
 
@@ -202,7 +214,7 @@ PBS             db NUM_CHANS dup (?)
 C_LOCK          db NUM_CHANS dup (?)    
 C_PROT          db NUM_CHANS dup (?)    
 V_PROT          db NUM_CHANS dup (?)    
-                ENDS
+ctrl_log        ENDS
 
 logged_ctrls    LABEL BYTE              ;Controllers saved in state table
                 db PART_VOLUME,MODULATION,PANPOT,EXPRESSION,SUSTAIN
@@ -268,7 +280,7 @@ note_chan       db MAX_NOTES dup (?)
 note_num        db MAX_NOTES dup (?)
 note_time_l     dw MAX_NOTES dup (?)
 note_time_h     dw MAX_NOTES dup (?)
-                ENDS
+state_table     ENDS
 
 sequence_state  dd NSEQS dup (?)
 sequence_count  dw ?
@@ -279,7 +291,7 @@ trigger_ds      dw ?
 trigger_fn      dd ?
 
 global_shadow   LABEL BYTE            
-global_controls ctrl_log <?>
+global_controls ctrl_log <>
 global_program  db NUM_CHANS dup (?)
 global_pitch_l  db NUM_CHANS dup (?)
 global_pitch_h  db NUM_CHANS dup (?)
@@ -290,35 +302,74 @@ lock_status     db NUM_CHANS dup (?)    ;bit 7: locked
                                         ;    6: lock-protected           
 init_OK         dw 0
 chk_hook_str    db 'ULTRAMID',0              ;Stamp to find resident GF1 O.S.
-gf1hook        label   dword   ; The GF1 hook for all AIL calls.
-hookoff     dw      0
-hookseg     dw      0
+gf1hook        	label   dword   ; The GF1 hook for all AIL calls.
+hookoff     	dw      0
+hookseg     	dw      0
+
+find_seq        	CPROTO XMID:FAR PTR,SeqNum:WORD   
+rewind_seq      	CPROTO Sequence:WORD 
+flush_channel_notes 	CPROTO Chan:WORD     
+flush_note_queue 	CPROTO State:FAR PTR 
+reset_sequence  	CPROTO State:FAR PTR 
+restore_sequence 	CPROTO State:FAR PTR 
+XMIDI_volume    	CPROTO State:FAR PTR 
+XMIDI_control   	CPROTO State:FAR PTR,Chan:WORD,Con:WORD,Val:WORD
+XMIDI_note_on   	CPROTO State:FAR PTR      
+XMIDI_meta      	CPROTO State:FAR PTR      
+XMIDI_sysex     	CPROTO State:FAR PTR      
+ul_divide       	CPROTO NumLO:WORD,NumHI:WORD,DenLO:WORD,DenHI:WORD       
+advance_count   	CPROTO Sequence:WORD        
+serve_driver    	CPROTO               
+init_driver     	CPROTO H:WORD,IO_ADDR:WORD,IRQ:WORD,DMA:WORD,DRQ:WORD
+shutdown_driver 	CPROTO H:WORD,SignOff:FAR PTR
+get_state_size  	CPROTO H:WORD
+install_callback 	CPROTO H:WORD,Fn:FAR PTR    
+cancel_callback 	CPROTO H:WORD               
+register_seq    	CPROTO H:WORD,XMID:FAR PTR,Num:WORD,State:FAR PTR,Ctrl:FAR PTR
+release_seq     	CPROTO H:WORD,Sequence:WORD
+start_seq       	CPROTO H:WORD,Sequence:WORD
+stop_seq        	CPROTO H:WORD,Sequence:WORD
+resume_seq      	CPROTO H:WORD,Sequence:WORD
+get_seq_status  	CPROTO H:WORD,Sequence:WORD
+get_beat_count 	 	CPROTO H:WORD,Sequence:WORD
+get_bar_count   	CPROTO H:WORD,Sequence:WORD
+map_seq_channel 	CPROTO H:WORD,Sequence:WORD,SeqChan:WORD,PhysChan:WORD
+true_seq_channel 	CPROTO H:WORD,Sequence:WORD,SeqChan:WORD
+branch_index    	CPROTO H:WORD,Sequence:WORD,Marker:BYTE
+get_rel_tempo   	CPROTO H:WORD,Sequence:WORD
+get_rel_volume  	CPROTO H:WORD,Sequence:WORD
+set_rel_tempo   	CPROTO H:WORD,Sequence:WORD,Tempo:WORD,Grad:WORD
+set_rel_volume 	 	CPROTO H:WORD,Sequence:WORD,Volume:WORD,Grad:WORD
+get_control_val 	CPROTO H:WORD,Sequence:WORD,Chan:WORD,Control:WORD
+set_control_val 	CPROTO H:WORD,Sequence:WORD,Chan:WORD,Control:WORD,Val:WORD
+get_chan_notes  	CPROTO H:WORD,Sequence:WORD,Chan:WORD
+lock_channel    	CPROTO H:WORD               
+release_channel 	CPROTO H:WORD,Chan:WORD
+
 ;****************************************************************************
 ;*                                                                          *
 ;*  XMIDI interpreter and related procedures                                *
 ;*                                                                          *
 ;****************************************************************************
 
-find_seq        PROC XMID:FAR PTR,SeqNum        ;Find FORM SeqNum in IFF 
-                LOCAL end_addr_l,end_addr_h     ;CAT/FORM XMID file
-                USES ds,si,di
-
+find_seq        CPROC USES DS SI DI XMID:FAR PTR,SeqNum:WORD        ;Find FORM SeqNum in IFF 
+                LOCAL end_addr_l:WORD,end_addr_h:WORD     ;CAT/FORM XMID file
                 mov cx,[SeqNum]
                 inc cx                          ;look for CXth FORM XMID chunk
 
                 lds si,[XMID]
-__find_XMID:    cmp [si],'AC'
+__find_XMID:    cmp WORD PTR [si],'AC'
                 jne __chk_FORM
-                cmp [si+2],' T'
+                cmp WORD PTR [si+2],' T'
                 je __found_IFF
-__chk_FORM:     cmp [si],'OF'                 
+__chk_FORM:     cmp WORD PTR [si],'OF'                 
                 jne __not_found         
-                cmp [si+2],'MR'                 ;return failure if not an IFF
+                cmp WORD PTR [si+2],'MR'                 ;return failure if not an IFF
                 jne __not_found                 ;image
 
-__found_IFF:    cmp [si+8],'MX'
+__found_IFF:    cmp WORD PTR [si+8],'MX'
                 jne __next_XMID
-                cmp [si+10],'DI'
+                cmp WORD PTR [si+10],'DI'
                 je __found_XMID
 
 __next_XMID:    mov dx,[si+4]                   ;find first XMID chunk
@@ -339,9 +390,9 @@ __found_XMID:   mov dx,[si+4]
                 mov end_addr_l,ax
                 mov end_addr_h,dx
 
-                cmp [si],'OF'                   ;if outer header was a FORM,
+                cmp WORD PTR [si],'OF'                   ;if outer header was a FORM,
                 jne __scan_CAT                  ;return successfully if CX=1
-                cmp [si+2],'MR'
+                cmp WORD PTR [si+2],'MR'
                 jne __scan_CAT
                 cmp cx,1
                 je __seq_found
@@ -349,9 +400,9 @@ __found_XMID:   mov dx,[si+4]
 
 __scan_CAT:     add si,12                       ;index first FORM chunk
 
-__check_FORM:   cmp [si+8],'MX'                 ;is this a FORM XMID?
+__check_FORM:   cmp WORD PTR [si+8],'MX'                 ;is this a FORM XMID?
                 jne __next_FORM
-                cmp [si+10],'DI'
+                cmp WORD PTR [si+10],'DI'
                 je __next_seq                   ;yes, dec the loop counter...
 
 __next_FORM:    mov dx,[si+4]                   ;else add length of FORM + 8
@@ -375,70 +426,67 @@ __seq_found:    mov ax,si
 __not_found:    mov ax,0                        ;return NULL if not found
                 mov dx,0
 __exit:         ret
-                ENDP
+find_seq        ENDP
 
 ;****************************************************************************
-rewind_seq      PROC Sequence           ;Reset sequence pointer and invalidate
-                USES ds,si,di           ;all state table entries
-                                                     
+rewind_seq      CPROC USES DS SI DI Sequence:WORD      ;Reset sequence pointer and invalidate
+               				              ;all state table entries                                                    
                 mov si,[Sequence]
                 lds si,sequence_state[si]
 
                 mov cx,FOR_NEST
                 mov bx,0
-__init_FOR:     mov [si].FOR_loop_cnt[bx],-1
+__init_FOR:     mov [si].state_table.FOR_loop_cnt[bx],-1
                 add bx,2
                 loop __init_FOR
 
                 mov bx,NUM_CHANS-1
-__init_chans:   mov [si].chan_map[bx],bl
-                mov [si].chan_program[bx],-1
-                mov [si].chan_pitch_l[bx],-1
-                mov [si].chan_pitch_h[bx],-1
-                mov [si].chan_indirect[bx],-1
+__init_chans:   mov [si].state_table.chan_map[bx],bl
+                mov [si].state_table.chan_program[bx],-1
+                mov [si].state_table.chan_pitch_l[bx],-1
+                mov [si].state_table.chan_pitch_h[bx],-1
+                mov [si].state_table.chan_indirect[bx],-1
                 dec bx
                 jge __init_chans
 
-                mov bx,SIZE chan_controls-1
-__init_ctrls:   mov BYTE PTR [si].chan_controls[bx],-1
+                mov bx,SIZE state_table.chan_controls-1
+__init_ctrls:   mov BYTE PTR [si].state_table.chan_controls[bx],-1
                 dec bx
                 jge __init_ctrls
 
                 mov bx,MAX_NOTES-1
-__init_notes:   mov [si].note_chan[bx],-1
+__init_notes:   mov [si].state_table.note_chan[bx],-1
                 dec bx
                 jge __init_notes
 
-                mov [si].cur_callback,-1
-                mov [si].interval_cnt,0
-                mov [si].note_count,0
-                mov [si].vol_percent,DEF_SYNTH_VOL
-                mov [si].vol_target,DEF_SYNTH_VOL
-                mov [si].tempo_percent,100
-                mov [si].tempo_target,100
-                mov [si].tempo_error,0
-                mov [si].beat_count,0              
-                mov [si].measure_count,-1
+                mov [si].state_table.cur_callback,-1
+                mov [si].state_table.interval_cnt,0
+                mov [si].state_table.note_count,0
+                mov [si].state_table.vol_percent,DEF_SYNTH_VOL
+                mov [si].state_table.vol_target,DEF_SYNTH_VOL
+                mov [si].state_table.tempo_percent,100
+                mov [si].state_table.tempo_target,100
+                mov [si].state_table.tempo_error,0
+                mov [si].state_table.beat_count,0              
+                mov [si].state_table.measure_count,-1
 
-                mov [si].beat_fraction_l,0
-                mov [si].beat_fraction_h,0
+                mov [si].state_table.beat_fraction_l,0
+                mov [si].state_table.beat_fraction_h,0
 
-                mov [si].time_fraction_l,0
-                mov [si].time_fraction_h,0
+                mov [si].state_table.time_fraction_l,0
+                mov [si].state_table.time_fraction_h,0
 
-                mov [si].time_numerator,4       ;default to 4/4 time
+                mov [si].state_table.time_numerator,4       ;default to 4/4 time
 
-                mov [si].time_per_beat_l,01200h ;default to 500000 us/beat*16
-                mov [si].time_per_beat_h,0007ah ;(120 beats/min)
+                mov [si].state_table.time_per_beat_l,01200h ;default to 500000 us/beat*16
+                mov [si].state_table.time_per_beat_h,0007ah ;(120 beats/min)
 
                 ret
-                ENDP
+rewind_seq      ENDP
 
 ;****************************************************************************
-flush_channel_notes PROC Chan:BYTE      ;Turn all sequences' notes off in a 
-                LOCAL handle,seqcnt     ;given channel
-                USES ds,si,di           
-
+flush_channel_notes CPROC USES DS SI DI Chan:WORD      ;Turn all sequences' notes off in a 
+                LOCAL handle:WORD,seqcnt:WORD     ;given channel
                 mov handle,0            ;for all sequences....
 
                 mov cx,sequence_count
@@ -452,23 +500,23 @@ __for_seq:      mov di,handle
 
                 lds si,sequence_state[di]
 
-                cmp [si].note_count,0
+                cmp [si].state_table.note_count,0
                 je __next_seq           ;no notes on, don't bother looking
 
                 mov bx,0                ;check note queue for active notes
-__for_entry:    mov al,[si].note_chan[bx]
-                cmp al,[Chan]
+__for_entry:    mov al,[si].state_table.note_chan[bx]
+                cmp al,BYTE PTR [Chan]
                 jne __next_entry
-                mov [si].note_chan[bx],-1
-                mov cl,[si].note_num[bx]
+                mov [si].state_table.note_chan[bx],-1
+                mov cl,[si].state_table.note_num[bx]
                 mov di,bx
                 mov bl,al
                 mov bh,0                ;translate logical to physical channel
-                mov bl,[si].chan_map[bx]
+                mov bl,[si].state_table.chan_map[bx]
                 dec active_notes[bx]    ;dec # of active notes in channel
                 or bl,80h               ;send MIDI Note Off message
-                call send_MIDI_message C,bx,cx,0
-                dec [si].note_count
+                INVOKE send_MIDI_message,bx,cx,0
+                dec [si].state_table.note_count
                 mov bx,di
 __next_entry:   inc bx
                 cmp bx,MAX_NOTES
@@ -478,75 +526,72 @@ __next_seq:     dec seqcnt
                 jne __for_seq
 
 __exit:         ret
-                ENDP
+flush_channel_notes ENDP
 
 ;****************************************************************************
-flush_note_queue PROC State:FAR PTR     ;Turn all queued notes off
-                USES ds,si,di           
+flush_note_queue CPROC USES DS SI DI State:FAR PTR     ;Turn all queued notes off
                 cld
 
                 lds si,[State]
 
                 mov bx,0                ;check note queue for active notes
-__for_entry:    mov al,[si].note_chan[bx]
+__for_entry:    mov al,[si].state_table.note_chan[bx]
                 cmp al,-1
                 je __next_entry
-                mov [si].note_chan[bx],-1
-                mov cl,[si].note_num[bx]
+                mov [si].state_table.note_chan[bx],-1
+                mov cl,[si].state_table.note_num[bx]
                 mov di,bx
                 mov bl,al
                 mov bh,0                ;translate logical to physical channel
-                mov bl,[si].chan_map[bx]
+                mov bl,[si].state_table.chan_map[bx]
                 dec active_notes[bx]    ;dec # of active notes in channel
                 or bl,80h               ;send MIDI Note Off message
-                call send_MIDI_message C,bx,cx,0
+                INVOKE send_MIDI_message,bx,cx,0
                 mov bx,di
 __next_entry:   inc bx
                 cmp bx,MAX_NOTES
                 jb __for_entry
 
-                mov [si].note_count,0
+                mov [si].state_table.note_count,0
                 ret
-                ENDP
+flush_note_queue ENDP
 
 ;****************************************************************************
-reset_sequence  PROC State:FAR PTR     ;Abandon all sequence-owned resources
-                USES ds,si,di           
-
+reset_sequence  CPROC USES DS SI DI State:FAR PTR     ;Abandon all sequence-owned resources
                 lds si,[State]
 
                 mov di,0
 __for_chan:     mov bx,di
-                mov al,[si].chan_controls.SUS[bx]
+                mov al,[si].state_table.chan_controls.SUS[bx]
                 cmp al,64
                 jl __chk_lock
                 mov global_controls.SUS[bx],0
                 or bx,0b0h
-                call send_MIDI_message C,bx,SUSTAIN,0
+                INVOKE send_MIDI_message,bx,SUSTAIN,0
                 mov bx,di
 
-__chk_lock:     mov al,[si].chan_controls.C_LOCK[bx]
+__chk_lock:     mov al,[si].state_table.chan_controls.C_LOCK[bx]
                 cmp al,64
                 jl __chk_cprot
-                call flush_channel_notes C,di
+                INVOKE flush_channel_notes,di
                 mov bx,di
-                mov bl,[si].chan_map[bx]
+                mov bl,[si].state_table.chan_map[bx]
                 mov bh,0
                 inc bx
-                call release_channel C,0,bx
+                INVOKE release_channel,0,bx
                 mov bx,di
-                mov [si].chan_map[bx],bl
+                mov [si].state_table.chan_map[bx],bl
 
-__chk_cprot:    mov al,[si].chan_controls.C_PROT[bx]
+__chk_cprot:    mov al,[si].state_table.chan_controls.C_PROT[bx]
                 cmp al,64
                 jl __chk_vprot
                 and lock_status[bx],10111111b
 
-__chk_vprot:    mov al,[si].chan_controls.V_PROT[bx]
+__chk_vprot:    mov al,[si].state_table.chan_controls.V_PROT[bx]
                 cmp al,64
                 jl __next_chan
                 or bx,0b0h
-                call send_MIDI_message C,bx,VOICE_PROTECT,0
+                INVOKE send_MIDI_message,bx,VOICE_PROTECT,0
                 mov bx,di
 
 __next_chan:    inc di
@@ -554,29 +599,27 @@ __next_chan:    inc di
                 jne __for_chan
 
                 ret
-                ENDP
+reset_sequence  ENDP
 
 ;****************************************************************************
-restore_sequence PROC State:FAR PTR     ;Reassert all "owned" controls
-                LOCAL con,ctrl,index      
-                USES ds,si,di
-
+restore_sequence CPROC USES DS SI DI State:FAR PTR     ;Reassert all "owned" controls
+                LOCAL con:WORD,ctrl:WORD,index:WORD      
                 lds si,[State]
 
                 mov di,0                ;re-lock any channels formerly locked
 __for_lock:     mov bx,di               ;by CHAN_LOCK controllers
-                mov al,[si].chan_controls.C_LOCK[bx]
+                mov al,[si].state_table.chan_controls.C_LOCK[bx]
                 cmp al,-1
                 je __next_lock
                 cmp al,64
                 jl __next_lock
-                call lock_channel C,0   ;lock new channel and map to current
+                INVOKE lock_channel,0   ;lock new channel and map to current
                 dec ax                  ;channel in sequence
                 cmp ax,-1
                 jne __locked
                 mov ax,di
 __locked:       mov bx,di
-                mov [si].chan_map[bx],al
+                mov [si].state_table.chan_map[bx],al
 __next_lock:    inc di
                 cmp di,NUM_CHANS
                 jne __for_lock
@@ -592,10 +635,10 @@ __for_control:  mov bx,con              ;values
                 mov di,0
 __for_channel:  mov bx,di
                 add bx,index
-                mov al,BYTE PTR [si].chan_controls[bx]
+                mov al,BYTE PTR [si].state_table.chan_controls[bx]
                 cmp al,-1
                 je __next_channel
-                call XMIDI_control C,si,ds,di,ctrl,ax
+                INVOKE XMIDI_control,DS::si,di,ctrl,ax
 __next_channel: inc di
                 cmp di,NUM_CHANS
                 jne __for_channel
@@ -605,42 +648,40 @@ __next_control: inc con
 
                 mov di,0                ;restore pitch/program # values
 __for_p_p:      mov bx,di
-                mov al,[si].chan_pitch_l[bx]
+                mov al,[si].state_table.chan_pitch_l[bx]
                 cmp al,-1
                 je __set_prg
-                mov dl,[si].chan_pitch_h[bx]
+                mov dl,[si].state_table.chan_pitch_h[bx]
                 cmp dl,-1
                 je __set_prg
-                mov bl,[si].chan_map[bx]
+                mov bl,[si].state_table.chan_map[bx]
                 or bx,0e0h
-                call send_MIDI_message C,bx,ax,dx
+                INVOKE send_MIDI_message,bx,ax,dx
                 mov bx,di
-__set_prg:      mov dl,[si].chan_program[bx]
+__set_prg:      mov dl,[si].state_table.chan_program[bx]
                 cmp dl,-1
                 je __next_p_p
-                mov bl,[si].chan_map[bx]
+                mov bl,[si].state_table.chan_map[bx]
                 or bx,0c0h
-                call send_MIDI_message C,bx,dx,0
+                INVOKE send_MIDI_message,bx,dx,0
 __next_p_p:     inc di
                 cmp di,NUM_CHANS
                 jne __for_p_p
 
                 ret
-                ENDP
+restore_sequence ENDP
 
 ;****************************************************************************
-XMIDI_volume    PROC State:FAR PTR      ;Send updated volume control messages
-                USES ds,si,di           
-                
+XMIDI_volume    CPROC USES DS SI DI State:FAR PTR      ;Send updated volume control messages               
                 lds si,[State]       
                                        
                 mov bx,0                
-__for_chan:     mov al,[si].chan_controls.PV[bx]
+__for_chan:     mov al,[si].state_table.chan_controls.PV[bx]
                 cmp al,-1
                 je __next_chan
                 mov ah,0
 
-                mov cx,[si].vol_percent
+                mov cx,[si].state_table.vol_percent
                 mul cx                  ;else get scaled volume value
                 mov cx,100
                 div cx
@@ -653,9 +694,9 @@ __send:         mov di,bx               ;update global controller shadow
                 test lock_status[bx],10000000b
                 jnz __next_chan         ;(logical channel locked)
                 mov di,bx
-                mov bl,[si].chan_map[bx]
+                mov bl,[si].state_table.chan_map[bx]
                 or bl,0b0h              ;send the new volume value
-                call send_MIDI_message C,bx,PART_VOLUME,ax
+                INVOKE send_MIDI_message,bx,PART_VOLUME,ax
                 mov bx,di               ;recover channel
 
 __next_chan:    inc bx
@@ -663,44 +704,43 @@ __next_chan:    inc bx
                 jne __for_chan
 
                 ret
-                ENDP
+XMIDI_volume    ENDP
 
 ;****************************************************************************
-XMIDI_control   PROC State:FAR PTR,Chan:BYTE,Con:BYTE,Val:BYTE
-                USES ds,si,di           ;Process XMIDI Control Change message
-                LOCAL prg_sp
-                NOJUMPS
+XMIDI_control   CPROC USES DS SI DI State:FAR PTR,Chan:WORD,Con:WORD,Val:WORD
+               				      ;Process XMIDI Control Change message
+                LOCAL prg_sp:WORD
                 cld
 
                 lds si,[State]
 
-                mov bl,[Chan]           ;BX=channel #
+                mov bl,BYTE PTR [Chan]           ;BX=channel #
                 mov bh,0                
-                mov dl,[Val]            ;DX=value
+                mov dl,BYTE PTR [Val]            ;DX=value
                 mov dh,0
 
-                mov al,[si].chan_indirect[bx]
+                mov al,[si].state_table.chan_indirect[bx]
                 cmp al,-1
                 je __value              ;no indirection pending, continue
 
-                mov [si].chan_indirect[bx],-1
+                mov [si].state_table.chan_indirect[bx],-1
                 mov bl,al
-                les di,[si].ctrl_ptr    ;else get value from controller table
+                les di,[si].state_table.ctrl_ptr    ;else get value from controller table
                 mov dl,es:[di][bx]      
 
-__value:        mov bl,[Con]            ;BX=controller #
+__value:        mov bl,BYTE PTR [Con]            ;BX=controller #
                 mov bh,0
 
                 mov bl,ctrl_hash[bx]
                 cmp bl,-1
                 je __interpret          ;(not loggable)
 
-                add bl,[Chan]           ;copy controller value to state tables
+                add bl,BYTE PTR [Chan]           ;copy controller value to state tables
                 mov BYTE PTR global_controls[bx],dl
-                mov BYTE PTR [si].chan_controls[bx],dl         
+                mov BYTE PTR [si].state_table.chan_controls[bx],dl         
 
-__interpret:    mov al,[Con]            ;handle sequence-specific controllers
-                mov bl,[Chan]
+__interpret:    mov al,BYTE PTR [Con]            ;handle sequence-specific controllers
+                mov bl,BYTE PTR [Chan]
                 cmp al,PART_VOLUME      ;BX=channel, AL=controller #, DX=value
                 je __scale_volume       
                 cmp al,CLEAR_BEAT_BAR   
@@ -720,14 +760,14 @@ __interpret:    mov al,[Con]            ;handle sequence-specific controllers
 
 __send:         test lock_status[bx],10000000b
                 jnz __exit              ;(logical channel locked)
-                mov bl,[si].chan_map[bx]
+                mov bl,[si].state_table.chan_map[bx]
                 or bl,0b0h              ;send the controller value
-                call send_MIDI_message C,bx,ax,dx
+                INVOKE send_MIDI_message,bx,ax,dx
               
 __exit:         mov ax,3                ;return total event size
                 ret
 
-__scale_volume: mov cx,[si].vol_percent
+__scale_volume: mov cx,[si].state_table.vol_percent
                 cmp cx,100
                 je __send               ;100% volume, don't scale
                 mov ax,dx
@@ -750,23 +790,21 @@ __go_cp:        jmp __chan_prot
 __go_cl:        jmp __chan_lock
 __go_indirect:  jmp __indirect
 
-                JUMPS
-
-__indirect:     mov [si].chan_indirect[bx],dl
+__indirect:     mov [si].state_table.chan_indirect[bx],dl
                 jmp __exit
 
-__clear_cntrs:  mov [si].beat_count,0
-                mov [si].measure_count,0
-                mov [si].beat_fraction_l,0
-                mov [si].beat_fraction_h,0
+__clear_cntrs:  mov [si].state_table.beat_count,0
+                mov [si].state_table.measure_count,0
+                mov [si].state_table.beat_fraction_l,0
+                mov [si].state_table.beat_fraction_h,0
 
-                mov ax,[si].time_fraction_l
-                mov dx,[si].time_fraction_h
-                sub [si].beat_fraction_l,ax
-                sbb [si].beat_fraction_h,dx
+                mov ax,[si].state_table.time_fraction_l
+                mov dx,[si].state_table.time_fraction_h
+                sub [si].state_table.beat_fraction_l,ax
+                sbb [si].state_table.beat_fraction_h,dx
                 jmp __exit
 
-__callback:     mov [si].cur_callback,dx
+__callback:     mov [si].state_table.cur_callback,dx
                 mov ax,WORD PTR trigger_fn
                 or ax,WORD PTR trigger_fn+2
                 je __exit               ;(callback functions disabled)
@@ -775,7 +813,7 @@ __callback:     mov [si].cur_callback,dx
                 mov prg_sp,sp           ;save SP before parameters pushed
 
                 push dx                 ;(use C calling convention)
-                push [si].seq_handle    ;push sequence handle, ctrl value
+                push [si].state_table.seq_handle    ;push sequence handle, ctrl value
                 mov ds,trigger_ds       ;restore the application module's DS
                 call [trigger_fn]       ;and call the callback function
 
@@ -786,16 +824,16 @@ __callback:     mov [si].cur_callback,dx
 
 __for_loop:     mov bx,0                ;get index of available loop counter
                 mov cx,FOR_NEST
-__for_find:     cmp [si].FOR_loop_cnt[bx],-1
+__for_find:     cmp [si].state_table.FOR_loop_cnt[bx],-1
                 je __for_found
                 add bx,2
                 loop __for_find
                 jmp __exit
-__for_found:    mov [si].FOR_loop_cnt[bx],dx
+__for_found:    mov [si].state_table.FOR_loop_cnt[bx],dx
                 shl bx,1
-                les di,[si].EVNT_ptr    ;(NEXT controller will skip FOR)
-                mov WORD PTR [si].FOR_ptrs[bx],di
-                mov WORD PTR [si].FOR_ptrs[bx+2],es
+                les di,[si].state_table.EVNT_ptr    ;(NEXT controller will skip FOR)
+                mov WORD PTR [si].state_table.FOR_ptrs[bx],di
+                mov WORD PTR [si].state_table.FOR_ptrs[bx+2],es
                 jmp __exit
 
 __next_loop:    cmp dl,64               ;BREAK controller (value < 64)?
@@ -803,21 +841,21 @@ __next_loop:    cmp dl,64               ;BREAK controller (value < 64)?
 
                 mov bx,(FOR_NEST*2)-2   
                 mov cx,FOR_NEST         ;else get index of inner loop counter
-__next_find:    cmp [si].FOR_loop_cnt[bx],-1
+__next_find:    cmp [si].state_table.FOR_loop_cnt[bx],-1
                 jne __next_found
                 sub bx,2
                 loop __next_find
                 jmp __exit
-__next_found:   cmp [si].FOR_loop_cnt[bx],0
+__next_found:   cmp [si].state_table.FOR_loop_cnt[bx],0
                 je __do_loop            ;FOR value 0 = infinite loop
-                dec [si].FOR_loop_cnt[bx]
+                dec [si].state_table.FOR_loop_cnt[bx]
                 jnz __do_loop
-                mov [si].FOR_loop_cnt[bx],-1
+                mov [si].state_table.FOR_loop_cnt[bx],-1
                 jmp __exit              ;remove loop from list if dec'd to 0
 __do_loop:      shl bx,1
-                les di,[si].FOR_ptrs[bx]
-                mov WORD PTR [si].EVNT_ptr,di
-                mov WORD PTR [si].EVNT_ptr+2,es
+                les di,[si].state_table.FOR_ptrs[bx]
+                mov WORD PTR [si].state_table.EVNT_ptr,di
+                mov WORD PTR [si].state_table.EVNT_ptr+2,es
                 jmp __exit
 
 __chan_prot:    or lock_status[bx],01000000b
@@ -829,33 +867,31 @@ __chan_prot:    or lock_status[bx],01000000b
 __chan_lock:    mov di,bx
                 cmp dl,64
                 jl __unlock
-                call lock_channel C,0   ;lock new channel and map to current
+                INVOKE lock_channel,0   ;lock new channel and map to current
                 dec ax                  ;channel in sequence
                 cmp ax,-1
                 jne __set_chan
                 mov ax,di
 __set_chan:     mov bx,di
-                mov [si].chan_map[bx],al
+                mov [si].state_table.chan_map[bx],al
                 jmp __exit
 
-__unlock:       call flush_channel_notes C,di
+__unlock:       INVOKE flush_channel_notes,di
                 mov bx,di
-                mov bl,[si].chan_map[bx]
+                mov bl,[si].state_table.chan_map[bx]
                 inc bx
-                call release_channel C,0,bx
+                INVOKE release_channel,0,bx
                 mov bx,di
-                mov [si].chan_map[bx],bl
+                mov [si].state_table.chan_map[bx],bl
                 jmp __exit              ;release and unmap locked channel
 
-                ENDP
+XMIDI_control   ENDP
 
 ;****************************************************************************
-XMIDI_note_on   PROC State:FAR PTR      ;Turn XMIDI note on, add to note queue
-                LOCAL chan_note,vel,len ;Returns AX=size of Note On event
-                USES ds,si,di
-
+XMIDI_note_on   CPROC USES DS SI DI State:FAR PTR      ;Turn XMIDI note on, add to note queue
+                LOCAL chan_note:WORD,vel:WORD,len:WORD ;Returns AX=size of Note On event
                 lds si,[State]          
-                les di,[si].EVNT_ptr    ;retrieve event data pointer
+                les di,[si].state_table.EVNT_ptr    ;retrieve event data pointer
                 mov ax,es:[di]         
                 and al,0fh              ;AL=channel, AH=note #
                 mov chan_note,ax
@@ -888,14 +924,14 @@ __calc_VLN:     mov cl,es:[di]
 
                 mov ax,ds               ;set up to scan the note queue for
                 mov es,ax               ;an empty slot
-                lea di,[si].note_chan   
+                lea di,[si].state_table.note_chan   
                 mov cx,MAX_NOTES
                 mov al,0ffh             
                 repne scasb             
                 mov ax,di
                 jne __overflow          ;overwrite entry 0 if queue full
-                inc [si].note_count     ;else bump note counter...
-                lea ax,[si].note_chan+1 ;and index the empty slot
+                inc [si].state_table.note_count     ;else bump note counter...
+                lea ax,[si].state_table.note_chan+1 ;and index the empty slot
 __overflow:     sub di,ax               ;DI=queue slot [0,MAX_NOTES-1]
 
                 mov ax,bx               ;DX:AX = duration
@@ -904,31 +940,29 @@ __overflow:     sub di,ax               ;DI=queue slot [0,MAX_NOTES-1]
                 sbb dx,0                ;negative durations)
 
                 mov cx,chan_note        ;log the note's channel and key #
-                mov [si].note_chan[bx],cl
-                mov [si].note_num[bx],ch
+                mov [si].state_table.note_chan[bx],cl
+                mov [si].state_table.note_num[bx],ch
                 shl bx,1                ;log the note's duration
-                mov [si].note_time_l[bx],ax
-                mov [si].note_time_h[bx],dx
+                mov [si].state_table.note_time_l[bx],ax
+                mov [si].state_table.note_time_h[bx],dx
 
                 mov bl,cl
                 mov bh,0                ;translate logical to physical channel
-                mov bl,[si].chan_map[bx]
+                mov bl,[si].state_table.chan_map[bx]
                 inc active_notes[bx]    ;inc # of notes in channel
                 or bl,90h               ;turn the note on
                 mov cl,ch
-                call send_MIDI_message C,bx,cx,vel
+                INVOKE send_MIDI_message,bx,cx,vel
 
 __exit:         mov ax,len              ;return event length
                 ret
-                ENDP
+XMIDI_note_on   ENDP
 
 ;****************************************************************************
-XMIDI_meta      PROC State:FAR PTR      ;XMIDI meta-event interpreter
-                LOCAL event_len,event_type:BYTE
-                USES ds,si,di
-
+XMIDI_meta      CPROC USES DS SI DI State:FAR PTR      ;XMIDI meta-event interpreter
+                LOCAL event_len:WORD,event_type:BYTE
                 lds si,[State]          ;get pointers to state table and event
-                les di,[si].EVNT_ptr   
+                les di,[si].state_table.EVNT_ptr   
                 mov al,es:[di+1]
                 mov event_type,al
 
@@ -964,16 +998,16 @@ __calc_VLN:     mov cl,es:[di]
 __exit:         mov ax,event_len        ;return total event length
                 ret
 
-__end_sequence: call reset_sequence C,si,ds
-                mov [si].status,SEQ_DONE
-                cmp [si].post_release,0 ;release-on-completion pending?
+__end_sequence: INVOKE reset_sequence,DS::si
+                mov [si].state_table.status,SEQ_DONE
+                cmp [si].state_table.post_release,0 ;release-on-completion pending?
                 je __exit              
-                call release_seq C,0,current_handle
+                INVOKE release_seq,0,current_handle
                 jmp __exit
 
 __time_sig:     mov ch,0
                 mov cl,es:[di]
-                mov [si].time_numerator,cx
+                mov [si].state_table.time_numerator,cx
 
                 mov cl,es:[di+1]
                 sub cx,2
@@ -996,16 +1030,16 @@ __mul_quant:    add ax,QUANT_TIME_16_L
                 adc dx,QUANT_TIME_16_H
                 loop __mul_quant
 
-__end_calc:     mov [si].time_fraction_l,ax
-                mov [si].time_fraction_h,dx
+__end_calc:     mov [si].state_table.time_fraction_l,ax
+                mov [si].state_table.time_fraction_h,dx
 
-                mov [si].beat_fraction_l,0
-                mov [si].beat_fraction_h,0
-                sub [si].beat_fraction_l,ax
-                sbb [si].beat_fraction_h,dx
+                mov [si].state_table.beat_fraction_l,0
+                mov [si].state_table.beat_fraction_h,0
+                sub [si].state_table.beat_fraction_l,ax
+                sbb [si].state_table.beat_fraction_h,dx
 
-                mov [si].beat_count,0
-                inc [si].measure_count
+                mov [si].state_table.beat_count,0
+                inc [si].state_table.measure_count
                 jmp __exit
 
 __set_tempo:    mov dh,0
@@ -1018,19 +1052,17 @@ __mul_X16:      shl ax,1
                 rcl dx,1
                 loop __mul_X16
 
-                mov [si].time_per_beat_l,ax
-                mov [si].time_per_beat_h,dx
+                mov [si].state_table.time_per_beat_l,ax
+                mov [si].state_table.time_per_beat_h,dx
                 jmp __exit
 
-                ENDP
+XMIDI_meta      ENDP
 
 ;****************************************************************************
-XMIDI_sysex     PROC State:FAR PTR      ;XMIDI System Exclusive interpreter
-                LOCAL event_len,event_type
-                USES ds,si,di
-
+XMIDI_sysex     CPROC USES DS SI DI State:FAR PTR      ;XMIDI System Exclusive interpreter
+                LOCAL event_len:WORD,event_type:WORD
                 lds si,[State]          ;get pointers to state table and event
-                les di,[si].EVNT_ptr   
+                les di,[si].state_table.EVNT_ptr   
                 mov al,es:[di]
                 mov ah,0
                 mov event_type,ax
@@ -1057,21 +1089,19 @@ __calc_VLN:     mov cl,es:[di]
                 mov event_len,cx        ;to determine overall event length
 
                 IFDEF send_MIDI_sysex
-                call send_MIDI_sysex C,di,es,event_type,ax
+                INVOKE send_MIDI_sysex,ES::di,event_type,ax
                 ENDIF
 
                 mov ax,event_len        ;return total event length
                 ret
-                ENDP
+XMIDI_sysex     ENDP
 
 ;*****************************************************************************
-ul_divide       PROC Num:DWORD,Den:DWORD        ;Unsigned long division
-                USES ds,si,di
-
-                mov ax,WORD PTR [Num]
-                mov dx,WORD PTR [Num]+2
-                mov bx,WORD PTR [Den]
-                mov cx,WORD PTR [Den]+2
+ul_divide       CPROC USES DS SI DI NumLO:WORD,NumHI:WORD,DenLO:WORD,DenHI:WORD        ;Unsigned long division
+                mov ax,[NumLO]
+                mov dx,[NumHI]
+                mov bx,[DenLO]
+                mov cx,[DenHI]
 
                 or cx,cx
                 jne __long_div
@@ -1105,39 +1135,38 @@ __short_div:    div bx
 
 __end_div:      ret
 
-                ENDP
+ul_divide       ENDP
 
 ;****************************************************************************
-advance_count   PROC Sequence           ;Fetch DX=bar, AX=beat "advanced" by
-                USES ds,si,di           ;QUANT_ADVANCE intervals
-
+advance_count   CPROC USES DS SI DI Sequence:WORD           ;Fetch DX=bar, AX=beat "advanced" by
+                                                      ;QUANT_ADVANCE intervals
                 mov si,[Sequence]
                 lds si,sequence_state[si]
 
-                mov ax,[si].beat_count
-                mov dx,[si].measure_count
+                mov ax,[si].state_table.beat_count
+                mov dx,[si].state_table.measure_count
 
                 IF QUANT_ADVANCE        ;anticipate future changes to beat/bar
                                         ;count (assuming current MIDI meter!)
                 mov di,QUANT_ADVANCE
-                mov bx,[si].beat_fraction_l
-                mov cx,[si].beat_fraction_h
+                mov bx,[si].state_table.beat_fraction_l
+                mov cx,[si].state_table.beat_fraction_h
 
-__advance_loop: add bx,[si].time_fraction_l
-                adc cx,[si].time_fraction_h
+__advance_loop: add bx,[si].state_table.time_fraction_l
+                adc cx,[si].state_table.time_fraction_h
 
-                cmp cx,[si].time_per_beat_h
+                cmp cx,[si].state_table.time_per_beat_h
                 jl __advance_next
                 jg __new_beat
-                cmp bx,[si].time_per_beat_l
+                cmp bx,[si].state_table.time_per_beat_l
                 jl __advance_next
 
-__new_beat:     sub bx,[si].time_per_beat_l
-                sbb cx,[si].time_per_beat_h
+__new_beat:     sub bx,[si].state_table.time_per_beat_l
+                sbb cx,[si].state_table.time_per_beat_h
                 
                 inc ax                  ;bump beat if ticks > ticks per beat
 
-                cmp ax,[si].time_numerator
+                cmp ax,[si].state_table.time_numerator
                 jb __advance_next
 
                 mov ax,0                ;bump measure if beat > time numerator
@@ -1153,16 +1182,15 @@ __advance_next: dec di
                 mov dx,0
 
 __return:       ret                     
-                ENDP                    
+advance_count   ENDP                    
 
 ;****************************************************************************
 ;*                                                                          *
 ;*  Public (API-accessible) procedures                                      *
 ;*                                                                          *
 ;****************************************************************************
-serve_driver    PROC                    ;Periodic driver service routine
-                LOCAL seqcnt
-                USES ds,si,di
+serve_driver    CPROC  USES DS SI DI                   ;Periodic driver service routine
+                LOCAL seqcnt:WORD
                 cld
 
                 cmp service_active,0    ;OK to interrupt foreground process?
@@ -1173,14 +1201,14 @@ serve_driver    PROC                    ;Periodic driver service routine
 		je __served
 		jmp __do_service
 
-__new_beat:     sub ax,[si].time_per_beat_l
-                sbb dx,[si].time_per_beat_h
-                inc [si].beat_count
-                mov cx,[si].beat_count
-                cmp cx,[si].time_numerator
+__new_beat:     sub ax,[si].state_table.time_per_beat_l
+                sbb dx,[si].state_table.time_per_beat_h
+                inc [si].state_table.beat_count
+                mov cx,[si].state_table.beat_count
+                cmp cx,[si].state_table.time_numerator
                 jb __same_beat
-                mov [si].beat_count,0
-                inc [si].measure_count
+                mov [si].state_table.beat_count,0
+                inc [si].state_table.measure_count
                 jmp __same_beat
 
 __do_service:   inc service_active
@@ -1197,51 +1225,51 @@ __for_seq:      add current_handle,4
                 je __for_seq            ;(sequence not registered)
 
                 lds si,sequence_state[di]
-                cmp [si].status,SEQ_PLAYING
+                cmp [si].state_table.status,SEQ_PLAYING
                 jne __next_seq          ;(sequence not playing)
 
-                mov ax,[si].tempo_error
-                add ax,[si].tempo_percent
-                mov [si].tempo_error,ax
+                mov ax,[si].state_table.tempo_error
+                add ax,[si].state_table.tempo_percent
+                mov [si].state_table.tempo_error,ax
                 sub ax,100
                 jl __chk_t_grad
-__rep_interval: mov [si].tempo_error,ax
+__rep_interval: mov [si].state_table.tempo_error,ax
 
-                cmp [si].note_count,0   ;any notes on in sequence?
+                cmp [si].state_table.note_count,0   ;any notes on in sequence?
                 jne __do_queue          ;yes, turn off any expired notes
 
-__end_queue:    dec [si].interval_cnt
+__end_queue:    dec [si].state_table.interval_cnt
                 jle __do_events         ;next interval ready, play it
 
-__end_events:   mov ax,[si].beat_fraction_l
-                mov dx,[si].beat_fraction_h
-                add ax,[si].time_fraction_l
-                adc dx,[si].time_fraction_h
-                cmp dx,[si].time_per_beat_h
+__end_events:   mov ax,[si].state_table.beat_fraction_l
+                mov dx,[si].state_table.beat_fraction_h
+                add ax,[si].state_table.time_fraction_l
+                adc dx,[si].state_table.time_fraction_h
+                cmp dx,[si].state_table.time_per_beat_h
                 jg __new_beat
                 jl __same_beat
-                cmp ax,[si].time_per_beat_l
+                cmp ax,[si].state_table.time_per_beat_l
                 jge __new_beat
-__same_beat:    mov [si].beat_fraction_l,ax
-                mov [si].beat_fraction_h,dx
+__same_beat:    mov [si].state_table.beat_fraction_l,ax
+                mov [si].state_table.beat_fraction_h,dx
 
-                mov ax,[si].tempo_error
+                mov ax,[si].state_table.tempo_error
                 sub ax,100
                 jge __rep_interval
 
-__chk_t_grad:   mov ax,[si].tempo_percent
-                cmp ax,[si].tempo_target
+__chk_t_grad:   mov ax,[si].state_table.tempo_percent
+                cmp ax,[si].state_table.tempo_target
                 jne __do_temp_grad
 
-__chk_v_grad:   mov ax,[si].vol_percent
-                cmp ax,[si].vol_target
+__chk_v_grad:   mov ax,[si].state_table.vol_percent
+                cmp ax,[si].state_table.vol_target
                 jne __do_vol_grad
 
 __next_seq:     dec seqcnt
                 jne __for_seq
 
 __end_seqs:     IFDEF serve_synth       ;update synthesizer hardware regs and
-                call serve_synth        ;time-variant effects, if applicable
+                INVOKE serve_synth        ;time-variant effects, if applicable
                 ENDIF
 
 		mov ax, TSR_SEM_LEAVE
@@ -1254,7 +1282,7 @@ __do_vol_grad:  jmp __volume_grad
 
 __do_events:    jmp __get_event   
 
-__do_queue:     lea di,[si].note_chan   ;check note queue for expired notes
+__do_queue:     lea di,[si].state_table.note_chan   ;check note queue for expired notes
                 mov dx,di
                 mov cx,MAX_NOTES        
 __scan_queue:   mov ax,ds
@@ -1266,36 +1294,36 @@ __next_scan:    repe scasb
                 sub bx,dx
                 dec bx
                 shl bx,1                ;get offset of note in queue
-                sub [si].note_time_l[bx],1
-                sbb [si].note_time_h[bx],0
+                sub [si].state_table.note_time_l[bx],1
+                sbb [si].state_table.note_time_h[bx],0
                 jge __next_scan         ;not yet expired, keep searching
                 push cx
                 shr bx,1
                 mov al,-1               ;else mark note entry as "free"
-                xchg al,[si].note_chan[bx]
-                mov cl,[si].note_num[bx]
+                xchg al,[si].state_table.note_chan[bx]
+                mov cl,[si].state_table.note_num[bx]
                 mov bl,al
                 mov bh,0                ;translate logical to physical channel
-                mov bl,[si].chan_map[bx]
+                mov bl,[si].state_table.chan_map[bx]
                 dec active_notes[bx]    ;dec # of active notes in channel
                 or bl,80h               ;send MIDI Note Off message
-                call send_MIDI_message C,bx,cx,0
+                INVOKE send_MIDI_message,bx,cx,0
                 pop cx
-                lea dx,[si].note_chan   ;restore queue length & base pointer
-                dec [si].note_count     
+                lea dx,[si].state_table.note_chan   ;restore queue length & base pointer
+                dec [si].state_table.note_count     
                 jnz __scan_queue        ;keep searching if any notes left
                 jmp __end_queue         ;else return to interval loop
 
-__new_interval: add WORD PTR [si].EVNT_ptr,1
-                mov [si].interval_cnt,ax
+__new_interval: add WORD PTR [si].state_table.EVNT_ptr,1
+                mov [si].state_table.interval_cnt,ax
                 jmp __end_events
 
 __normalize:    FAR_TO_HUGE es,di
-                mov WORD PTR [si].EVNT_ptr+2,es
-                mov WORD PTR [si].EVNT_ptr,di
+                mov WORD PTR [si].state_table.EVNT_ptr+2,es
+                mov WORD PTR [si].state_table.EVNT_ptr,di
                 jmp __get_status
 
-__get_event:    les di,[si].EVNT_ptr    ;get next event status byte
+__get_event:    les di,[si].state_table.EVNT_ptr    ;get next event status byte
                 cmp di,8000h            ;(for speed, normalize EVNT pointer 
                 jae __normalize         ;only when necessary)
 
@@ -1325,62 +1353,62 @@ __get_status:   mov al,es:[di]          ;AL = channel/status
                 cmp ax,0a0h
                 jae __send_event
 
-                call XMIDI_note_on C,si,ds
+                INVOKE XMIDI_note_on,DS::si
                 mov di,ax
                 jmp __end_event
 
 __sys:          cmp bl,0fh         
                 je __meta
-                call XMIDI_sysex C,si,ds
+                INVOKE XMIDI_sysex,DS::si
                 mov di,ax
                 jmp __end_event
 
-__meta:         call XMIDI_meta C,si,ds
+__meta:         INVOKE XMIDI_meta,DS::si
                 mov di,ax
                 jmp __end_event
 
-__ctrl_change:  call XMIDI_control C,si,ds,bx,cx,dx
+__ctrl_change:  INVOKE XMIDI_control,DS::si,bx,cx,dx
                 mov di,3
                 jmp __end_event
 
-__pitch_wheel:  mov [si].chan_pitch_l[bx],cl
-                mov [si].chan_pitch_h[bx],dl
+__pitch_wheel:  mov [si].state_table.chan_pitch_l[bx],cl
+                mov [si].state_table.chan_pitch_h[bx],dl
                 mov global_pitch_l[bx],cl
                 mov global_pitch_h[bx],dl
                 mov di,3
                 jmp __send_event
 
-__prg_change:   mov [si].chan_program[bx],cl
+__prg_change:   mov [si].state_table.chan_program[bx],cl
                 mov global_program[bx],cl
                 mov di,2
 
 __send_event:   test lock_status[bx],10000000b
                 jnz __end_event         ;(logical channel locked)
-                or al,[si].chan_map[bx]
-                call send_MIDI_message C,ax,cx,dx
+                or al,[si].state_table.chan_map[bx]
+                INVOKE send_MIDI_message,ax,cx,dx
 
-__end_event:    add WORD PTR [si].EVNT_ptr,di
-                cmp [si].status,SEQ_PLAYING
+__end_event:    add WORD PTR [si].state_table.EVNT_ptr,di
+                cmp [si].state_table.status,SEQ_PLAYING
                 jne __end_sequence
                 jmp __get_event
 __end_sequence: jmp __next_seq          
 
 __tempo_grad:   pushf
-                mov ax,[si].tempo_accum_l
-                mov dx,[si].tempo_accum_h
+                mov ax,[si].state_table.tempo_accum_l
+                mov dx,[si].state_table.tempo_accum_h
                 add ax,(QUANT_TIME / 100)
                 adc dx,0
                 mov cx,-1               ;CX=total tempo change/tick
 __for_tempo:    inc cx
-                mov [si].tempo_accum_l,ax
-                mov [si].tempo_accum_h,dx
-__next_tempo:   sub ax,[si].tempo_period_l    
-                sbb dx,[si].tempo_period_h
+                mov [si].state_table.tempo_accum_l,ax
+                mov [si].state_table.tempo_accum_h,dx
+__next_tempo:   sub ax,[si].state_table.tempo_period_l    
+                sbb dx,[si].state_table.tempo_period_h
                 jge __for_tempo
                 POP_F                   ;restore result of comparison
                 jcxz __end_t_grad       ;(no change this tick)
-                mov bx,[si].tempo_target
-                mov ax,[si].tempo_percent
+                mov bx,[si].state_table.tempo_target
+                mov ax,[si].state_table.tempo_percent
                 jl __add_tempo            
                 sub ax,cx
                 cmp ax,bx
@@ -1390,25 +1418,25 @@ __add_tempo:    add ax,cx
                 cmp ax,bx
                 jle __set_tempo
 __end_tempo:    mov ax,bx
-__set_tempo:    mov [si].tempo_percent,ax
+__set_tempo:    mov [si].state_table.tempo_percent,ax
 __end_t_grad:   jmp __chk_v_grad
 
 __volume_grad:  pushf
-                mov ax,[si].vol_accum_l
-                mov dx,[si].vol_accum_h
+                mov ax,[si].state_table.vol_accum_l
+                mov dx,[si].state_table.vol_accum_h
                 add ax,(QUANT_TIME / 100)
                 adc dx,0
                 mov cx,-1               ;CX=total vol change/tick
 __for_vol:      inc cx
-                mov [si].vol_accum_l,ax
-                mov [si].vol_accum_h,dx
-__next_vol:     sub ax,[si].vol_period_l    
-                sbb dx,[si].vol_period_h
+                mov [si].state_table.vol_accum_l,ax
+                mov [si].state_table.vol_accum_h,dx
+__next_vol:     sub ax,[si].state_table.vol_period_l    
+                sbb dx,[si].state_table.vol_period_h
                 jge __for_vol
                 POP_F                   ;restore result of comparison
                 jcxz __end_v_grad       ;(no change this tick)
-                mov bx,[si].vol_target
-                mov ax,[si].vol_percent
+                mov bx,[si].state_table.vol_target
+                mov ax,[si].state_table.vol_percent
                 jl __add_vol            
                 sub ax,cx
                 cmp ax,bx
@@ -1418,15 +1446,14 @@ __add_vol:      add ax,cx
                 cmp ax,bx
                 jle __set_vol
 __end_vol:      mov ax,bx
-__set_vol:      mov [si].vol_percent,ax
-                call XMIDI_volume C,si,ds
+__set_vol:      mov [si].state_table.vol_percent,ax
+                INVOKE XMIDI_volume,DS::si
 __end_v_grad:   jmp __next_seq
 
-                ENDP
+serve_driver    ENDP
 
 ;****************************************************************************
-init_driver     PROC H,IO_ADDR,IRQ,DMA,DRQ
-                USES ds,si,di
+init_driver     CPROC USES DS SI DI H:WORD,IO_ADDR:WORD,IRQ:WORD,DMA:WORD,DRQ:WORD
                 pushf
                 cli
                 cld
@@ -1470,17 +1497,17 @@ __create_hash:  mov bl,logged_ctrls[si]
                 jne __create_hash
 
                 IFDEF set_IO_parms
-                call set_IO_parms C,[IO_ADDR],[IRQ],[DMA],[DRQ]
+                INVOKE set_IO_parms,[IO_ADDR],[IRQ],[DMA],[DRQ]
                 ENDIF
                 IFDEF reset_interface
-                call reset_interface
+                INVOKE reset_interface
                 ENDIF
                 IFDEF init_interface
-                call init_interface
+                INVOKE init_interface
                 ENDIF
-                call reset_synth
-                call init_synth
-                call cancel_callback
+                INVOKE reset_synth
+                INVOKE init_synth
+                INVOKE cancel_callback,H
 
                 mov si,0                        ;init MIDI/XMIDI controllers
 __for_ctrl:     mov di,MIN_TRUE_CHAN-1          ;to nominal default values
@@ -1495,7 +1522,7 @@ __for_chan:     mov ax,di
                 mov bl,ctrl_hash[bx]
                 add bx,di
                 mov BYTE PTR global_controls[bx],cl
-                call send_MIDI_message C,ax,dx,cx
+                INVOKE send_MIDI_message,ax,dx,cx
                 inc di
                 cmp di,MAX_REC_CHAN-1
                 jbe __for_chan
@@ -1504,7 +1531,7 @@ __next_ctrl:    inc si
                 jbe __for_ctrl
 
                 IFDEF sysex_wait
-                call sysex_wait C,10            ;wait for FIFO to empty if
+                INVOKE sysex_wait,10            ;wait for FIFO to empty if
                 ENDIF                           ;necessary
 
                 mov di,MIN_TRUE_CHAN-1          ;init pitch/programs
@@ -1512,33 +1539,31 @@ __for_p_p:      mov global_pitch_l[di],DEF_PITCH_L
                 mov global_pitch_h[di],DEF_PITCH_H
                 mov ax,di
                 or ax,0e0h
-                call send_MIDI_message C,ax,DEF_PITCH_L,DEF_PITCH_H
-                mov bl,prg_default-(MIN_TRUE_CHAN-1)[di]
+                INVOKE send_MIDI_message,ax,DEF_PITCH_L,DEF_PITCH_H
+                mov bl,[prg_default-MIN_TRUE_CHAN+1+di]
                 cmp bl,-1
                 je __next_p_p
                 mov global_program[di],bl
                 mov ax,di
                 or ax,0c0h
-                call send_MIDI_message C,ax,bx,0
+                INVOKE send_MIDI_message,ax,bx,0
 __next_p_p:     inc di
                 cmp di,MAX_REC_CHAN-1
                 jbe __for_p_p
 
                 IFDEF sysex_wait
-                call sysex_wait C,10            ;wait for FIFO to empty if
+                INVOKE sysex_wait,10            ;wait for FIFO to empty if
                 ENDIF                           ;necessary
 
                 mov init_OK,1
 
                 POP_F
                 ret
-                ENDP
+init_driver     ENDP
 
 ;****************************************************************************
-shutdown_driver PROC H,SignOff:FAR PTR
-                LOCAL handle,seqcnt     ;given channel
-                USES ds,si,di
-
+shutdown_driver CPROC USES DS SI DI H:WORD,SignOff:FAR PTR
+                LOCAL handle:WORD,seqcnt:WORD     ;given channel
                 pushf
                 cli
 
@@ -1553,23 +1578,23 @@ __for_seq:      mov di,handle
                 add handle,4
                 cmp WORD PTR sequence_state[di+2],0
                 je __for_seq            ;(sequence not registered)
-                call stop_seq C,0,di
-                call release_seq C,0,di
+                INVOKE stop_seq,0,di
+                INVOKE release_seq,0,di
 __next_seq:     dec seqcnt
                 jne __for_seq
 
-__shutdown:     call reset_synth
+__shutdown:     INVOKE reset_synth
 
                 IFDEF write_display
-                call write_display C,0,[SignOff]
+                INVOKE write_display,0,[SignOff]
                 ENDIF
 
                 IFDEF reset_interface
-                call reset_interface
+                INVOKE reset_interface
                 ENDIF
 
                 IFDEF shutdown_synth
-                call shutdown_synth
+                INVOKE shutdown_synth
                 ENDIF
 
 		mov ax, TSR_APP_END
@@ -1579,11 +1604,10 @@ __shutdown:     call reset_synth
 
 __exit:         POP_F
                 ret
-                ENDP
+shutdown_driver ENDP
 
 ;****************************************************************************
-get_state_size  PROC H
-                USES ds,si,di
+get_state_size  CPROC USES DS SI DI H:WORD
                 pushf
                 cli
 
@@ -1591,11 +1615,10 @@ get_state_size  PROC H
 
                 POP_F
                 ret
-                ENDP
+get_state_size  ENDP
 
 ;****************************************************************************
-install_callback PROC H,Fn:FAR PTR      ;Declare callback trigger handler
-                USES ds,si,di
+install_callback CPROC USES DS SI DI H:WORD,Fn:FAR PTR      ;Declare callback trigger handler
                 pushf
                 cli
 
@@ -1607,11 +1630,10 @@ install_callback PROC H,Fn:FAR PTR      ;Declare callback trigger handler
 
                 POP_F
                 ret
-                ENDP
+install_callback ENDP
 
 ;****************************************************************************
-cancel_callback PROC H                  ;Disable callback trigger calls
-                USES ds,si,di
+cancel_callback CPROC USES DS SI DI H:WORD                  ;Disable callback trigger calls
                 pushf
                 cli
 
@@ -1620,13 +1642,12 @@ cancel_callback PROC H                  ;Disable callback trigger calls
 
                 POP_F
                 ret
-                ENDP
+cancel_callback ENDP
 
 ;****************************************************************************
-register_seq    PROC H,XMID:FAR PTR,Num,State:FAR PTR,Ctrl:FAR PTR
-                LOCAL handle,chunk_len_l,chunk_len_h
-                USES ds,si,di           ;Initialize sequence state table and
-
+register_seq    CPROC USES DS SI DI H:WORD,XMID:FAR PTR,Num:WORD,State:FAR PTR,Ctrl:FAR PTR
+                LOCAL handle:WORD,chunk_len_l:WORD,chunk_len_h:WORD
+                                        ;Initialize sequence state table and
                 pushf                   ;return sequence handle
                 cli
 
@@ -1642,7 +1663,7 @@ __find_handle:  cmp WORD PTR sequence_state[bx+2],0
 
 __handle_found: mov handle,bx
 
-                call find_seq C,[XMID],[Num]
+                INVOKE find_seq,[XMID],[Num]
                 cmp dx,0
                 je __bad                ;sequence not found, exit...
 
@@ -1655,9 +1676,9 @@ __handle_found: mov handle,bx
                 mov WORD PTR sequence_state[bx],si
                 mov WORD PTR sequence_state[bx+2],ds
 
-                mov WORD PTR [si].TIMB+2,0
-                mov WORD PTR [si].RBRN+2,0
-                mov WORD PTR [si].EVNT+2,0
+                mov WORD PTR [si].state_table.TIMB+2,0
+                mov WORD PTR [si].state_table.RBRN+2,0
+                mov WORD PTR [si].state_table.EVNT+2,0
 
 __log_chunk:    ADD_PTR chunk_len_l,chunk_len_h,es,di
                 mov ax,es:[di+6]
@@ -1669,25 +1690,25 @@ __log_chunk:    ADD_PTR chunk_len_l,chunk_len_h,es,di
                 mov chunk_len_l,ax
                 mov chunk_len_h,dx
 
-                cmp es:[di],'IT'        ;TIMB = list of required timbres
+                cmp WORD PTR es:[di],'IT'        ;TIMB = list of required timbres
                 jne __not_TIMB          ;(optional)
-                cmp es:[di+2],'BM'
+                cmp WORD PTR es:[di+2],'BM'
                 jne __not_TIMB
-                mov WORD PTR [si].TIMB,di
-                mov WORD PTR [si].TIMB+2,es
+                mov WORD PTR [si].state_table.TIMB,di
+                mov WORD PTR [si].state_table.TIMB+2,es
                 jmp __log_chunk
 
-__not_TIMB:     cmp es:[di],'BR'        ;RBRN = list of branch points
+__not_TIMB:     cmp WORD PTR es:[di],'BR'        ;RBRN = list of branch points
                 jne __not_RBRN          ;(optional)
-                cmp es:[di+2],'NR'
+                cmp WORD PTR es:[di+2],'NR'
                 jne __not_RBRN
-                mov WORD PTR [si].RBRN,di
-                mov WORD PTR [si].RBRN+2,es
+                mov WORD PTR [si].state_table.RBRN,di
+                mov WORD PTR [si].state_table.RBRN+2,es
                 jmp __log_chunk
 
-__not_RBRN:     cmp es:[di],'VE'        ;EVNT = MIDI event list 
+__not_RBRN:     cmp WORD PTR es:[di],'VE'        ;EVNT = MIDI event list 
                 jne __log_chunk         ;(mandatory; must be last chunk in
-                cmp es:[di+2],'TN'      ;sequence)
+                cmp WORD PTR es:[di+2],'TN'      ;sequence)
                 jne __log_chunk
 
 ; ES:DI Is a pointer to the Xmidi event list.
@@ -1700,21 +1721,21 @@ __not_RBRN:     cmp es:[di],'VE'        ;EVNT = MIDI event list
 		pop	es
 
                 mov ax,handle
-                mov [si].seq_handle,ax
-                mov WORD PTR [si].EVNT,di
-                mov WORD PTR [si].EVNT+2,es
+                mov [si].state_table.seq_handle,ax
+                mov WORD PTR [si].state_table.EVNT,di
+                mov WORD PTR [si].state_table.EVNT+2,es
 
                 les di,[Ctrl]
-                mov WORD PTR [si].ctrl_ptr,di
-                mov WORD PTR [si].ctrl_ptr+2,es
+                mov WORD PTR [si].state_table.ctrl_ptr,di
+                mov WORD PTR [si].state_table.ctrl_ptr+2,es
 
-                mov [si].post_release,0
+                mov [si].state_table.post_release,0
 
-                mov [si].seq_started,0
-                mov [si].status,SEQ_STOPPED
+                mov [si].state_table.seq_started,0
+                mov [si].state_table.status,SEQ_STOPPED
                 inc sequence_count
 
-                call rewind_seq C,handle
+                INVOKE rewind_seq,handle
 
                 mov ax,handle
 
@@ -1723,11 +1744,10 @@ __not_RBRN:     cmp es:[di],'VE'        ;EVNT = MIDI event list
 __bad:          mov ax,-1
 __exit:         POP_F
                 ret
-                ENDP
+register_seq    ENDP
 
 ;****************************************************************************
-release_seq     PROC H,Sequence
-                USES ds,si,di
+release_seq     CPROC USES DS SI DI H:WORD,Sequence:WORD
                 pushf
                 cli
  
@@ -1739,10 +1759,10 @@ release_seq     PROC H,Sequence
                 je __exit
 
                 les di,sequence_state[si]
-                cmp es:[di].status,SEQ_PLAYING
+                cmp es:[di].state_table.status,SEQ_PLAYING
                 jne __release
 
-                mov es:[di].post_release,1
+                mov es:[di].state_table.post_release,1
                 jmp __exit
 
 __release:      mov WORD PTR sequence_state[si+2],0
@@ -1750,11 +1770,10 @@ __release:      mov WORD PTR sequence_state[si+2],0
 
 __exit:         POP_F
                 ret
-                ENDP
+release_seq     ENDP
 
 ;****************************************************************************
-start_seq       PROC H,Sequence
-                USES ds,si,di
+start_seq       CPROC USES DS SI DI H:WORD,Sequence:WORD
                 pushf
                 cli
 
@@ -1764,31 +1783,30 @@ start_seq       PROC H,Sequence
 
                 lds si,sequence_state[si]
 
-                cmp [si].status,SEQ_PLAYING
+                cmp [si].state_table.status,SEQ_PLAYING
                 jne __start
-                call stop_seq C,0,[Sequence]
+                INVOKE stop_seq,0,[Sequence]
 
-__start:        call rewind_seq C,[Sequence]
+__start:        INVOKE rewind_seq,[Sequence]
 
-                mov ax,WORD PTR [si].EVNT
-                mov dx,WORD PTR [si].EVNT+2
+                mov ax,WORD PTR [si].state_table.EVNT
+                mov dx,WORD PTR [si].state_table.EVNT+2
                 ADD_PTR 8,0,dx,ax
-                mov WORD PTR [si].EVNT_ptr,ax
-                mov WORD PTR [si].EVNT_ptr+2,dx
+                mov WORD PTR [si].state_table.EVNT_ptr,ax
+                mov WORD PTR [si].state_table.EVNT_ptr+2,dx
 
 		mov 	ax,TSR_START_SEQUENCE
 		call    cs:gf1hook
 
-                mov [si].status,SEQ_PLAYING
-                mov [si].seq_started,1
+                mov [si].state_table.status,SEQ_PLAYING
+                mov [si].state_table.seq_started,1
 
 __exit:         POP_F
                 ret
-                ENDP
+start_seq       ENDP
 
 ;****************************************************************************
-stop_seq        PROC H,Sequence
-                USES ds,si,di
+stop_seq        CPROC USES DS SI DI H:WORD,Sequence:WORD
                 pushf
                 cli
 
@@ -1801,21 +1819,20 @@ stop_seq        PROC H,Sequence
 
                 lds si,sequence_state[si]
 
-                cmp [si].status,SEQ_PLAYING
+                cmp [si].state_table.status,SEQ_PLAYING
                 jne __exit
 
-                call flush_note_queue C,si,ds
-                call reset_sequence C,si,ds
+                INVOKE flush_note_queue,DS::si
+                INVOKE reset_sequence,DS::si
 
-                mov [si].status,SEQ_STOPPED
+                mov [si].state_table.status,SEQ_STOPPED
 
 __exit:         POP_F
                 ret
-                ENDP
+stop_seq        ENDP
 
 ;****************************************************************************
-resume_seq      PROC H,Sequence
-                USES ds,si,di
+resume_seq      CPROC USES DS SI DI H:WORD,Sequence:WORD
                 pushf
                 cli
 
@@ -1828,23 +1845,22 @@ resume_seq      PROC H,Sequence
 
                 lds si,sequence_state[si]
 
-                cmp [si].status,SEQ_STOPPED
+                cmp [si].state_table.status,SEQ_STOPPED
                 jne __exit
 
-                cmp [si].seq_started,0
+                cmp [si].state_table.seq_started,0
                 je __exit
 
-                call restore_sequence C,si,ds
+                INVOKE restore_sequence,DS::si
 
-                mov [si].status,SEQ_PLAYING
+                mov [si].state_table.status,SEQ_PLAYING
                                            
 __exit:         POP_F
                 ret
-                ENDP
+resume_seq      ENDP
 
 ;****************************************************************************
-get_seq_status  PROC H,Sequence
-                USES ds,si,di
+get_seq_status  CPROC USES DS SI DI H:WORD,Sequence:WORD
                 pushf
                 cli
 
@@ -1855,15 +1871,14 @@ get_seq_status  PROC H,Sequence
                 je __exit
 
                 lds si,sequence_state[si]
-                mov ax,[si].status
+                mov ax,[si].state_table.status
 
 __exit:         POP_F
                 ret
-                ENDP
+get_seq_status  ENDP
 
 ;****************************************************************************
-get_beat_count  PROC H,Sequence
-                USES ds,si,di
+get_beat_count  CPROC USES DS SI DI H:WORD,Sequence:WORD
                 pushf
                 cli
 
@@ -1873,15 +1888,14 @@ get_beat_count  PROC H,Sequence
                 cmp si,ax
                 je __exit
 
-                call advance_count C,si
+                INVOKE advance_count,si
 
 __exit:         POP_F
                 ret
-                ENDP
+get_beat_count  ENDP
 
 ;****************************************************************************
-get_bar_count   PROC H,Sequence
-                USES ds,si,di
+get_bar_count   CPROC USES DS SI DI H:WORD,Sequence:WORD
                 pushf
                 cli
 
@@ -1891,17 +1905,16 @@ get_bar_count   PROC H,Sequence
                 cmp si,ax
                 je __exit
 
-                call advance_count C,si
+                INVOKE advance_count,si
 
                 mov ax,dx
 
 __exit:         POP_F
                 ret
-                ENDP
+get_bar_count   ENDP
 
 ;****************************************************************************
-map_seq_channel PROC H,Sequence,SeqChan,PhysChan
-                USES ds,si,di
+map_seq_channel CPROC USES DS SI DI H:WORD,Sequence:WORD,SeqChan:WORD,PhysChan:WORD
                 pushf
                 cli
 
@@ -1914,15 +1927,14 @@ map_seq_channel PROC H,Sequence,SeqChan,PhysChan
                 dec bx
                 mov ax,[PhysChan]
                 dec ax
-                mov [si].chan_map[bx],al
+                mov [si].state_table.chan_map[bx],al
 
 __exit:         POP_F
                 ret
-                ENDP
+map_seq_channel ENDP
 
 ;****************************************************************************
-true_seq_channel PROC H,Sequence,SeqChan
-                USES ds,si,di
+true_seq_channel CPROC USES DS SI DI H:WORD,Sequence:WORD,SeqChan:WORD
                 pushf
                 cli
 
@@ -1934,17 +1946,16 @@ true_seq_channel PROC H,Sequence,SeqChan
                 lds si,sequence_state[si]
                 mov bx,[SeqChan]
                 dec bx
-                mov al,[si].chan_map[bx]
+                mov al,[si].state_table.chan_map[bx]
                 mov ah,0
                 inc ax
 
 __exit:         POP_F
                 ret
-                ENDP
+true_seq_channel ENDP
 
 ;****************************************************************************
-branch_index    PROC H,Sequence,Marker:BYTE
-                USES ds,si,di
+branch_index    CPROC USES DS SI DI H:WORD,Sequence:WORD,Marker:BYTE
                 pushf
                 cli
 
@@ -1954,14 +1965,14 @@ branch_index    PROC H,Sequence,Marker:BYTE
 
                 lds si,sequence_state[si]
 
-                cmp WORD PTR [si].RBRN+2,0
+                cmp WORD PTR [si].state_table.RBRN+2,0
                 je __exit               ;no branch points, exit               
 
 
-                les di,[si].RBRN        ;make sure RBRN chunk is still present
-                cmp es:[di],'BR'
+                les di,[si].state_table.RBRN        ;make sure RBRN chunk is still present
+                cmp WORD PTR es:[di],'BR'
                 jne __exit              ;if not, no branching is possible
-                cmp es:[di+2],'NR'
+                cmp WORD PTR es:[di+2],'NR'
                 jne __exit      
 
                 mov cx,es:[di+8]        ;get RBRN.cnt
@@ -1977,28 +1988,27 @@ __marker_found: mov ax,es:[di+2]        ;else get offset of target in EVNT
                 mov dx,es:[di+4]        ;chunk
                 add ax,8
                 adc dx,0
-                les di,[si].EVNT
+                les di,[si].state_table.EVNT
                 ADD_PTR ax,dx,es,di
-                mov WORD PTR [si].EVNT_ptr,di
-                mov WORD PTR [si].EVNT_ptr+2,es
-                mov [si].interval_cnt,0
-                call flush_note_queue C,si,ds
+                mov WORD PTR [si].state_table.EVNT_ptr,di
+                mov WORD PTR [si].state_table.EVNT_ptr+2,es
+                mov [si].state_table.interval_cnt,0
+                INVOKE flush_note_queue,DS::si
 
                 IF BRANCH_EXIT          ;cancel all FOR...NEXT loops if
                 mov cx,FOR_NEST         ;BRANCH_EXIT is TRUE
                 mov bx,0
-__init_FOR:     mov [si].FOR_loop_cnt[bx],-1
+__init_FOR:     mov [si].state_table.FOR_loop_cnt[bx],-1
                 add bx,2
                 loop __init_FOR
                 ENDIF
 
 __exit:         POP_F
                 ret
-                ENDP
+branch_index    ENDP
 
 ;****************************************************************************
-get_rel_tempo   PROC H,Sequence
-                USES ds,si,di
+get_rel_tempo   CPROC USES DS SI DI H:WORD,Sequence:WORD
                 pushf
                 cli
 
@@ -2008,15 +2018,14 @@ get_rel_tempo   PROC H,Sequence
                 je __exit
 
                 lds si,sequence_state[si]
-                mov ax,[si].tempo_percent
+                mov ax,[si].state_table.tempo_percent
 
 __exit:         POP_F
                 ret
-                ENDP
+get_rel_tempo   ENDP
 
 ;****************************************************************************
-get_rel_volume  PROC H,Sequence
-                USES ds,si,di
+get_rel_volume  CPROC USES DS SI DI H:WORD,Sequence:WORD
                 pushf
                 cli
 
@@ -2026,16 +2035,15 @@ get_rel_volume  PROC H,Sequence
                 je __exit
 
                 lds si,sequence_state[si]
-                mov ax,[si].vol_percent
+                mov ax,[si].state_table.vol_percent
 
 __exit:         POP_F
                 ret
-                ENDP
+get_rel_volume  ENDP
 
 
 ;****************************************************************************
-set_rel_tempo   PROC H,Sequence,Tempo,Grad
-                USES ds,si,di
+set_rel_tempo   CPROC USES DS SI DI H:WORD,Sequence:WORD,Tempo:WORD,Grad:WORD
                 pushf
                 cli
 
@@ -2045,13 +2053,13 @@ set_rel_tempo   PROC H,Sequence,Tempo,Grad
 
                 lds si,sequence_state[si]
                 mov ax,[Tempo]
-                mov [si].tempo_target,ax
+                mov [si].state_table.tempo_target,ax
 
                 cmp [Grad],0
                 je __immed
 
-                mov ax,[si].tempo_target
-                sub ax,[si].tempo_percent
+                mov ax,[si].state_table.tempo_target
+                sub ax,[si].state_table.tempo_percent
                 jz __exit               ;(no difference specified)
                 cwd
                 xor ax,dx
@@ -2060,26 +2068,25 @@ set_rel_tempo   PROC H,Sequence,Tempo,Grad
 
                 mov ax,10               ;get # of 100us periods/step
                 mul [Grad]           
-                call ul_divide C,ax,dx,cx,0
+		INVOKE ul_divide,ax,dx,cx,0
                 mov bx,ax
                 or bx,dx
                 jnz __nonzero
                 mov ax,1
-__nonzero:      mov [si].tempo_period_l,ax   
-                mov [si].tempo_period_h,dx
-                mov [si].tempo_accum_l,0
-                mov [si].tempo_accum_h,0
+__nonzero:      mov [si].state_table.tempo_period_l,ax   
+                mov [si].state_table.tempo_period_h,dx
+                mov [si].state_table.tempo_accum_l,0
+                mov [si].state_table.tempo_accum_h,0
                 jmp __exit
 
-__immed:        mov [si].tempo_percent,ax
+__immed:        mov [si].state_table.tempo_percent,ax
 
 __exit:         POP_F
                 ret
-                ENDP
+set_rel_tempo   ENDP
 
 ;****************************************************************************
-set_rel_volume  PROC H,Sequence,Volume,Grad
-                USES ds,si,di
+set_rel_volume  CPROC USES DS SI DI H:WORD,Sequence:WORD,Volume:WORD,Grad:WORD
                 pushf
                 cli
 
@@ -2089,13 +2096,13 @@ set_rel_volume  PROC H,Sequence,Volume,Grad
 
                 lds si,sequence_state[si]
                 mov ax,[Volume]
-                mov [si].vol_target,ax
+                mov [si].state_table.vol_target,ax
 
                 cmp [Grad],0
                 je __immed
 
-                mov ax,[si].vol_target
-                sub ax,[si].vol_percent
+                mov ax,[si].state_table.vol_target
+                sub ax,[si].state_table.vol_percent
                 jz __exit               ;(no difference specified)
                 cwd
                 xor ax,dx
@@ -2104,27 +2111,26 @@ set_rel_volume  PROC H,Sequence,Volume,Grad
 
                 mov ax,10               ;get # of 100us periods/step
                 mul [Grad]           
-                call ul_divide C,ax,dx,cx,0
+                INVOKE ul_divide,ax,dx,cx,0
                 mov bx,ax
                 or bx,dx
                 jnz __nonzero
                 mov ax,1
-__nonzero:      mov [si].vol_period_l,ax   
-                mov [si].vol_period_h,dx
-                mov [si].vol_accum_l,0
-                mov [si].vol_accum_h,0
+__nonzero:      mov [si].state_table.vol_period_l,ax   
+                mov [si].state_table.vol_period_h,dx
+                mov [si].state_table.vol_accum_l,0
+                mov [si].state_table.vol_accum_h,0
                 jmp __exit
 
-__immed:        mov [si].vol_percent,ax
-                call XMIDI_volume C,si,ds
+__immed:        mov [si].state_table.vol_percent,ax
+                INVOKE XMIDI_volume,DS::si
 
 __exit:         POP_F
                 ret
-                ENDP
+set_rel_volume  ENDP
 
 ;****************************************************************************
-get_control_val PROC H,Sequence,Chan,Control
-                USES ds,si,di
+get_control_val CPROC USES DS SI DI H:WORD,Sequence:WORD,Chan:WORD,Control:WORD
                 pushf
                 cli
 
@@ -2141,7 +2147,7 @@ get_control_val PROC H,Sequence,Chan,Control
                 cmp bx,CALLBACK_TRIG    ;allow application to poll last
                 jne __not_cb            ;callback trigger controller
 
-                mov ax,[si].cur_callback
+                mov ax,[si].state_table.cur_callback
                 jmp __exit
 
 __not_cb:       mov bl,ctrl_hash[bx]
@@ -2150,17 +2156,15 @@ __not_cb:       mov bl,ctrl_hash[bx]
 
                 add bx,[Chan]
                 dec bx
-                mov al,BYTE PTR [si].chan_controls[bx]
+                mov al,BYTE PTR [si].state_table.chan_controls[bx]
                 cbw                     ;else return current controller value
 
 __exit:         POP_F
                 ret
-                ENDP
+get_control_val ENDP
 
 ;****************************************************************************
-set_control_val PROC H,Sequence,Chan,Control,Val
-                USES ds,si,di
-
+set_control_val CPROC USES DS SI DI H:WORD,Sequence:WORD,Chan:WORD,Control:WORD,Val:WORD
                 pushf
                 cli
 
@@ -2172,15 +2176,14 @@ set_control_val PROC H,Sequence,Chan,Control,Val
 
                 mov ax,[Chan]
                 dec ax
-                call XMIDI_control C,si,ds,ax,[Control],[Val]
+                INVOKE XMIDI_control,DS::si,ax,[Control],[Val]
 
 __exit:         POP_F
                 ret
-                ENDP
+set_control_val ENDP
 
 ;****************************************************************************
-get_chan_notes  PROC H,Sequence,Chan
-                USES ds,si,di
+get_chan_notes  CPROC USES DS SI DI H:WORD,Sequence:WORD,Chan:WORD
                 pushf
                 cli
 
@@ -2196,7 +2199,7 @@ get_chan_notes  PROC H,Sequence,Chan
                 mov bx,0
                 mov cx,[Chan]
                 dec cx
-__count_notes:  cmp [si].note_chan[bx],cl
+__count_notes:  cmp [si].state_table.note_chan[bx],cl
                 jne __next_note
                 inc ax
 __next_note:    inc bx
@@ -2205,11 +2208,11 @@ __next_note:    inc bx
 
 __exit:         POP_F
                 ret
-                ENDP
+get_chan_notes  ENDP
 
 ;****************************************************************************
-lock_channel    PROC H                  ;return 0 if no channel available
-                USES ds,si,di           ;for locking
+lock_channel    CPROC USES DS SI DI H:WORD                  ;return 0 if no channel available
+                                                      ;for locking
                 pushf
                 cli
 
@@ -2236,9 +2239,9 @@ __find_next:    dec di
                 jmp __do_search         ;ignore lock protection & try again
 
 __got_channel:  or si,0b0h
-                call send_MIDI_message C,si,SUSTAIN,0
+                INVOKE send_MIDI_message,si,SUSTAIN,0
                 and si,0fh
-                call flush_channel_notes C,si
+                INVOKE flush_channel_notes,si
                 mov active_notes[si],0
 
                 or lock_status[si],10000000b
@@ -2247,11 +2250,10 @@ __exit:         mov ax,si
                 inc ax
                 POP_F
                 ret
-                ENDP
+lock_channel    ENDP
 
 ;****************************************************************************
-release_channel PROC H,Chan
-                USES ds,si,di
+release_channel CPROC USES DS SI DI H:WORD,Chan:WORD
                 pushf
                 cli
                 
@@ -2263,8 +2265,8 @@ release_channel PROC H,Chan
 
                 mov active_notes[si],0  ;silence the channel
                 or si,0b0h              ;(caller responsible for housekeeping)
-                call send_MIDI_message C,si,SUSTAIN,0
-                call send_MIDI_message C,si,ALL_NOTES_OFF,0
+                INVOKE send_MIDI_message,si,SUSTAIN,0
+                INVOKE send_MIDI_message,si,ALL_NOTES_OFF,0
 
                 and si,0fh              ;update channel controller values
                 mov bx,si
@@ -2276,7 +2278,7 @@ __for_ctrl:     mov dl,BYTE PTR global_controls[bx]
                 and bl,0fh              ;else isolate channel #...
                 or bl,0b0h              ;and send Control Change message
                 mov al,logged_ctrls[di]
-                call send_MIDI_message C,bx,ax,dx
+                INVOKE send_MIDI_message,bx,ax,dx
                 pop bx
 __next_ctrl:    add bx,NUM_CHANS        ;index next controller value
                 inc di                  ;index next controller type
@@ -2288,8 +2290,7 @@ __next_ctrl:    add bx,NUM_CHANS        ;index next controller value
                 cmp al,-1               ;update channel program #
                 je __restore_pw
                 or si,0c0h
-                call send_MIDI_message C,si,ax,0
-
+                INVOKE send_MIDI_message,si,ax,0
 __restore_pw:   and si,0fh              ;update channel pitch wheel
                 mov al,global_pitch_l[si]
                 cmp al,-1
@@ -2298,11 +2299,11 @@ __restore_pw:   and si,0fh              ;update channel pitch wheel
                 cmp dl,-1
                 je __exit
                 or si,0e0h
-                call send_MIDI_message C,si,ax,dx
+                INVOKE send_MIDI_message,si,ax,dx
 
 __exit:         POP_F
                 ret
-                ENDP
+release_channel ENDP
 
 ;****************************************************************************
                 END
