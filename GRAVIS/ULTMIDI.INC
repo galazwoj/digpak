@@ -1,3 +1,20 @@
+;***************************************************************************
+;	NAME:  ultmidi.inc
+; 	COPYRIGHT:
+; 	"Copyright (c) 1991,1992,1993 by Forte Technologies
+; 
+;        "This software is furnished under a license and may be used,
+;        copied, or disclosed only in accordance with the terms of such
+;        license and with the inclusion of the above copyright notice.
+;        This software or any other copies thereof may not be provided or
+;        otherwise made available to any other person. No title to and
+;        ownership of the software is hereby transfered."
+;***************************************************************************
+;  CREATION DATE: 04/01/93
+;--------------------------------------------------------------------------*
+;     VERSION	DATE	   NAME		DESCRIPTION
+;>	1.0	04/01/93   ultmidi.inc  main interface to UltraMID
+;**************************************************************************/
 ; calling parameters to ULTRAMID TSR
 ; AX should have a function request
 ; digital functions
@@ -28,10 +45,14 @@ TSR_FREE_TSR		    equ 21
 ; semaphore
 TSR_SEM_ENTER		    equ 22
 TSR_SEM_LEAVE		    equ 23
-TSR_SET_EXTERNAL_SEMAPHORE  equ 24
+TSR_ADD_EXTERNAL_SEMAPHORE  equ 24
 TSR_CLEAR_EXTERNAL_SEMAPHORE equ 25
 TSR_APP_START		    equ 26
 TSR_APP_END		    equ 27
+TSR_SET_MIDI_CALLBACK	    equ 28
+TSR_CLEAR_MIDI_CALLBACK	    equ 29
+TSR_SHUTDOWN_TSR	    equ 30
+TSR_RELOAD_TSR		    equ 31
 
 ; data type
 UM_8BIT		EQU	1	; 1 use 8 bit data 
@@ -42,35 +63,33 @@ UM_STEREO	EQU	8	; 1 for stereo data
 
 UM_STOP_SOUND	EQU	0
 UM_MORE_DATA	EQU	1
+UM_BUFFER_DONE	EQU	2
 UM_VOICE_DONE	EQU	2
 UM_PAUSE	EQU	3
 
-struc	SEG_OFF
-POFF	dw ?
-PSEG	dw ?
-	ends
-union	GUSFPTR
-	DPTR dd ?
-	XPTR SEG_OFF <>
-	ENDS
+UM_ERR_FRAMING	EQU	16
+UM_ERR_OVERRUN	EQU	32
+
+SEG_OFF	struct
+  	POFF	dw ?
+  	PSEG	dw ?
+SEG_OFF	ends
+
+GUSFPTR	union
+  	DPTR dd ?
+  	XPTR SEG_OFF <>
+GUSFPTR	ENDS
 	
-Struc	um_sound_struct
-	um_sound_data GUSFPTR <> 
-	um_stereo_mem GUSFPTR <> 
-	um_sound_len GUSFPTR <> 
-	um_gf1mem GUSFPTR <>
-	um_pan	     db ?
-	um_volume    dw ?
-	um_sample_rate  dw ?
-	label um_voice     word
-	um_priority     dw ?
-	um_data_type    db ?
+um_sound_struct	Struct	
+	um_sound_data GUSFPTR 	<> 
+	um_stereo_mem GUSFPTR	<> 
+	um_sound_len GUSFPTR 	<> 
+	um_gf1mem GUSFPTR 	<>
+	um_pan	     		db ?
+	um_volume    		dw ?
+	um_sample_rate  	dw ?
+ 	um_voice equ	um_priority
+	um_priority     	dw ?
+	um_data_type    	db ?
 	um_callback_addr GUSFPTR <>
-ENDS
-
-
-
-
-
-
-
+um_sound_struct	ENDS

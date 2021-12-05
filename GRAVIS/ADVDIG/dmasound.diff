@@ -1,3 +1,4 @@
+.8086
 		291:                	INVOKE 	next_block         
 		292:                	INVOKE 	process_block, ADDR umss
 		312:			INVOKE	next_buffer
@@ -92,4 +93,6 @@ masm disasm
 		push	cs                   
 		call	near ptr stop_d_pb   
 		add	sp, 2	
+
+When .186 is used the code gets simplified
 	

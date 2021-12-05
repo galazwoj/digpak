@@ -25,24 +25,27 @@
 DATA_IO         dw ?                    ;IO_addr
 STAT_COM        dw ?                    ;IO_addr+1
 
-;****************************************************************************
-set_IO_parms    PROC IO_ADDR,IRQ,DMA,DRQ
-                USES ds,si,di
+set_IO_parms    CPROTO IO_ADDR:WORD,IRQ:WORD,DMA:WORD,DRQ:WORD
+detect_device   CPROTO H:WORD,IO_ADDR:WORD,IRQ:WORD,DMA:WORD,DRQ:WORD 
+send_byte       CPROTO DataByte:WORD
+send_cmd        CPROTO CmdByte:WORD
+reset_interface CPROTO 
+init_interface  CPROTO 
 
+
+;****************************************************************************
+set_IO_parms    CPROC USES DS SI DI IO_ADDR:WORD,IRQ:WORD,DMA:WORD,DRQ:WORD
                 mov ax,[IO_ADDR]
                 mov DATA_IO,ax
                 inc ax
                 mov STAT_COM,ax
-
                 ret
-                ENDP
+set_IO_parms    ENDP
 
 ;****************************************************************************
-detect_device   PROC H,IO_ADDR,IRQ,DMA,DRQ  ;Attempt to detect MPU-401 card
-                USES ds,si,di    
+detect_device   CPROC USES DS SI DI H:WORD,IO_ADDR:WORD,IRQ:WORD,DMA:WORD,DRQ:WORD  ;Attempt to detect MPU-401 card
                 pushf
                 cli
-
 GF1_AIL_STR_SIZE	EQU		6
 GF1_VECTORS		EQU		8
 HOOK_STR_SIZE		EQU		8
@@ -76,85 +79,72 @@ next_vector:
 vector_valid:
 		pop	cx
 		pop	ds
-
 		mov	ah,035h
 		int	21h
 		mov     cs:hookoff, bx
 		mov     cs:hookseg, es
-
 		jmp	ok_detect
-
 gf1ail_not_found:
 		pop	ds
 		mov	ax,0h
 		jmp	bail_out
-
 ok_detect:
-
                 push DATA_IO              ;preserve current I/O address
                 push STAT_COM
-
-                call set_IO_parms C,[IO_ADDR],[IRQ],[DMA],[DRQ]
-
-                call reset_interface      ;attempt to reset card
-
+                INVOKE set_IO_parms,[IO_ADDR],[IRQ],[DMA],[DRQ]
+                INVOKE reset_interface      ;attempt to reset card
                 pop STAT_COM
                 pop DATA_IO
-
 bail_out:
                 POP_F                     ;return AX=0 if not found
                 ret
-                ENDP
+detect_device   ENDP
 
 ;****************************************************************************
-send_byte       PROC DataByte:BYTE
-
+send_byte       CPROC DataByte:WORD
 		mov ax,TSR_MIDI_OUT
 		mov ch,0h
-                mov cl,[DataByte]
+                mov cl,BYTE PTR [DataByte]
 
-		call    cs:gf1hook
+		call cs:gf1hook
 
                 ret
-                ENDP
+send_byte       ENDP
 
 ;****************************************************************************
-send_cmd        PROC CmdByte:BYTE
-
+send_cmd        CPROC CmdByte:WORD
                 pushf
                 cli
 
 		mov ax,1
 		POP_F
                 ret
-                ENDP
+send_cmd        ENDP
 
 ;****************************************************************************
-reset_interface PROC                    ;Returns 1 if MPU interface available
-                USES ds,si,di
+reset_interface CPROC USES DS SI DI                    ;Returns 1 if MPU interface available
                 pushf                   ;don't allow interruption
                 cli
 
-                call send_cmd C,0ffh    ;reset MPU-401 interface
+                INVOKE send_cmd,0ffh    ;reset MPU-401 interface
                 or ax,ax
                 jne __exit_reset        ;(worked the first time)
 
-                call send_cmd C,0ffh    ;try again in case UART mode active
+                INVOKE send_cmd,0ffh    ;try again in case UART mode active
 
 __exit_reset:   POP_F
                 ret
-                ENDP
+reset_interface ENDP
 
 ;****************************************************************************
-init_interface  PROC                    ;Init MPU-401-compatible interface
-                USES ds,si,di
+init_interface  CPROC USES DS SI DI                    ;Init MPU-401-compatible interface
                 pushf                   ;don't allow interruption
                 cli
 
-                call send_cmd C,03fh    ;assert UART mode
+                INVOKE send_cmd,03fh    ;assert UART mode
 
                 POP_F
-                ret
+		ret
 
 ;****************************************************************************
-                ENDP
+init_interface  ENDP

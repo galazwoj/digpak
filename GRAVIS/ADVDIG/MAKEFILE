@@ -1,7 +1,6 @@
 
-dmasound.adv: dmasound.asm ..\ail.inc ..\ail.mac ..\vol.inc ..\gf1tsr\ultmidi.inc
-   	ml /AT /Cp /DSBSTD  /I.. /I..\GF1TSR /Fedmasound /Fodmasound /Fldmasound dmasound.asm
-   	copy dmasound.com gf1digi.adv
+gf1digi.adv: gf1digi.asm ..\ail.inc ..\ail.mac ..\vol.inc ..\gf1tsr\ultmidi.inc
+   	ml /AT /Cp /DSBSTD  /I.. /I..\GF1TSR /Fegf1digi.adv /Fogf1digi /Flgf1digi gf1digi.asm
 
 clean:
 	del *.obj
