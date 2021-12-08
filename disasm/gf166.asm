@@ -16,7 +16,7 @@ CPROC 	equ	<Proc near C>
 start:
 		jmp	LoadSound
 
-aDIGPAK		db 'DIGPAK',0,0Dh,0Ah		
+DIGPAK		db 'DIGPAK',0,0Dh,0Ah		
 IDENTIFIER	db 'Advanced Gravis UltraSound',0,0Dh,0Ah
 		db 'The Audio Solution, Copyright (c) 1993',0,0Dh,0Ah
 		db 'Written by John W. Ratcliff',0,0Dh,0Ah,0
@@ -24,9 +24,9 @@ IDENTIFIER	db 'Advanced Gravis UltraSound',0,0Dh,0Ah
 		org 200h
 		jmp	near ptr InstallInterupt
 		jmp	near ptr DeInstallInterupt
-DUMMYBASE	dw -1
-DUMMYIRQ	dw -1
-DUMMYEXTRA	dw -1
+_io_addx	dw	-1	    ; Default I/O address.
+_intr_num	dw	-1	    ; Default is interupt #7
+fixed_dma	dw	-1	    ; hard coded to dma #1 righ now.
 
 JumpTable	dw offset FUNCT1	
 		dw offset FUNCT2
@@ -71,20 +71,18 @@ um_sound_struct	struc
 um_sound_struct	ends
 ;um_sound_length	equ  0x1C
 
-GUSSound	um_sound_struct	<>	
-					
-GUS_voice	dw 0			
-GUS_sound_data_seg dw 0			
-					
-aUltramid	db 'ULTRAMID',0         
-ultramid_intr	dd 0			
-_voice_status	dw 0			
-					
+umss	um_sound_struct	<>					
+playing		dw 0			
+playseg 	dw 0							
+chk_hook_str	db 'ULTRAMID',0         
+gf1hook		dd 0			
+
+_voice_status	dw 0						
 CallBacks	dw 0			
-CallLow		dw 0			
-					
+CallLow		dw 0							
 CallHigh	dw 0			
 CallDS		dw 0			
+
 DivisorRate	dw 0			
 PlayMode	dw 0			
 					
@@ -112,9 +110,9 @@ SoundInterupt	proc far
 	mov	cs:JumpPtr, ax
 	jmp	cs:JumpPtr
 loc_BB1:				
-	cmp	word ptr OLDIN.XPTR.POFF, 0
+	cmp	word ptr OLDIN.XPTR.POFF, 0	;should be prefixed with cs:
 	jnz	short loc_BBF
-	cmp	word ptr OLDIN.XPTR.PSEG, 0
+	cmp	word ptr OLDIN.XPTR.PSEG, 0     ;should be prefixed with cs:
 	jz	short loc_BC4
 
 loc_BBF:				
@@ -161,8 +159,8 @@ FUNCT5:
 
 FUNCT6:					
 	mov	ax, 8
-	call	cs:ultramid_intr
-	sub	ax, cs:GUS_sound_data_seg
+	call	cs:gf1hook
+	sub	ax, cs:playseg
 	shl	ax, 1
 	shl	ax, 1
 	add	ax, dx
@@ -189,7 +187,7 @@ loc_C85:
 FUNCT8:					
 	mov	cs:PENDING, 0
 	mov	cs:LOOPING, 0
-	call	ctv_uninstall
+	call	StopSound
 	ClearSemaphoreIRET
 
 FUNCT9:					
@@ -207,17 +205,17 @@ FUNCTB:
 	mov	cs:CallHigh, 0
 	mov	cs:PENDING, 0
 	mov	cs:LOOPING, 0
-	call	ctv_uninstall
+	call	StopSound
 	mov	ax, 14h
-	mov	dx, word ptr cs:GUSSound.um_gf1mem
-	mov	bx, word ptr cs:GUSSound.um_gf1mem+2
-	call	cs:ultramid_intr
+	mov	dx, word ptr cs:umss.um_gf1mem
+	mov	bx, word ptr cs:umss.um_gf1mem+2
+	call	cs:gf1hook
 	mov	ax, 19h
 	mov	bx, cs
 	mov	dx, offset INDIGPAK
-	call	cs:ultramid_intr
+	call	cs:gf1hook
 	mov	ax, 1Bh
-	call	cs:ultramid_intr
+	call	cs:gf1hook
 	ClearSemaphoreIRET
 
 FUNCTC:					
@@ -290,13 +288,13 @@ FUNCT10:
 	sub	ax, dx
 	mov	cl, 3
 	shr	ax, cl
-	mov	cs:GUSSound.um_pan, al
-	cmp	cs:GUS_voice, 0
+	mov	cs:umss.um_pan, al
+	cmp	cs:playing, 0
 	jz	short loc_E00
 	mov	ax, 2
-	mov	cx, cs:GUS_voice
+	mov	cx, cs:playing
 	dec	cx
-	call	cs:ultramid_intr
+	call	cs:gf1hook
 loc_E00:				
 	mov	ax, 1
 	ClearSemaphoreIRET
@@ -335,21 +333,21 @@ FUNCT17:
 FUNCT18:				
 	shl	bx, 1
 	mov	ax, cs:gf1_volumes[bx]
-	mov	cs:GUSSound.um_volume, ax
-	cmp	cs:GUS_voice, 0
+	mov	cs:umss.um_volume, ax
+	cmp	cs:playing, 0
 	jz	short loc_E8C
 	mov	bx, ax
 	mov	ax, 3
-	mov	cx, cs:GUS_voice
+	mov	cx, cs:playing
 	dec	cx
-	call	cs:ultramid_intr
+	call	cs:gf1hook
 loc_E8C:				
 	mov	ax, 1
 	ClearSemaphoreIRET
 
 ; Attributes: bp-based frame
 
-ultramid_handler PROC FAR C USES DS SI DI reason:WORD,voice:WORD,buff:FAR PTR,buff_len:FAR PTR,bufrate:FAR PTR
+um_callback PROC FAR C USES DS SI DI reason:WORD,voice:WORD,buff:FAR PTR,buff_len:FAR PTR,bufrate:FAR PTR
 	push	cs
 	pop	ds
 	cmp	reason, 0
@@ -372,7 +370,7 @@ loc_EBA:
 loc_ECD:				
 	les	di, buff
 	lds	si, cs:LOOPSND.PLAYADR
-	mov	cs:GUS_sound_data_seg, ds
+	mov	cs:playseg, ds
 	mov	es:[di], si
 	mov	word ptr es:[di+2], ds
 	les	di, buff_len
@@ -388,7 +386,7 @@ loc_F01:
 	mov	cs:PENDING, 0
 	les	di, buff
 	lds	si, cs:PENDSND.PLAYADR
-	mov	cs:GUS_sound_data_seg, ds
+	mov	cs:playseg, ds
 	mov	es:[di], si
 	mov	word ptr es:[di+2], ds
 	les	di, buff_len
@@ -403,14 +401,14 @@ loc_F01:
 loc_F3C:				
 	jmp	short loc_F53
 loc_F3E:				
-	mov	cs:GUS_voice, 0
+	mov	cs:playing, 0
 	mov	cs:_voice_status, 0
 	mov	cs:LOOPING, 0
 loc_F53:				
 	mov	ax, 0
 loc_F56:				
 	ret
-ultramid_handler endp
+um_callback endp
 
 DoSoundPlay	proc near		
 	PushCREGS
@@ -456,7 +454,7 @@ EndLoop		proc near
 	mov	cs:CallLow, 0
 	mov	cs:CallHigh, 0
 	mov	cs:LOOPING, 0
-	call	ctv_uninstall
+	call	StopSound
 	retn
 EndLoop		endp
 
@@ -470,7 +468,7 @@ loc_FF0:
 	retn
 CompleteSound	endp
 
-		dd    0
+ORG_INT_ADDX	dd    0
 StereoMono	db 0FFh
 
 PlaySound	proc near		
@@ -483,44 +481,44 @@ loc_100A:
 	jnz	short loc_1014
 	or	al, 5
 loc_1014:				
-	mov	cs:GUSSound.um_data_type, al
-	mov	cs:GUSSound.um_sample_rate, dx
-	mov	word ptr cs:GUSSound.um_sound_data+2, es
-	mov	cs:GUS_sound_data_seg, es
-	mov	word ptr cs:GUSSound.um_sound_data, bx
-	mov	word ptr cs:GUSSound.um_sound_len, cx
-	mov	word ptr cs:GUSSound.um_sound_len+2, 0
-	mov	cs:GUSSound.um_priority, 0
+	mov	cs:umss.um_data_type, al
+	mov	cs:umss.um_sample_rate, dx
+	mov	word ptr cs:umss.um_sound_data+2, es
+	mov	cs:playseg, es
+	mov	word ptr cs:umss.um_sound_data, bx
+	mov	word ptr cs:umss.um_sound_len, cx
+	mov	word ptr cs:umss.um_sound_len+2, 0
+	mov	cs:umss.um_priority, 0
 	mov	ax, cs
 	mov	es, ax
-	mov	di, offset GUSSound
+	mov	di, offset umss
 	mov	ax, 0
-	call	cs:ultramid_intr
+	call	cs:gf1hook
 	add	ax, 1
-	mov	cs:GUS_voice, ax
+	mov	cs:playing, ax
 	jz	short locret_105E
 	mov	cs:_voice_status, 1
 locret_105E:		
 	retn
 PlaySound	endp
 
-ctv_uninstall	proc near		
+StopSound	proc near		
 	push	ds
 	push	cs
 	pop	ds
 	mov	ax, 1
 	cmp	cs:_voice_status, 0
 	jz	short loc_1080
-	mov	cx, cs:GUS_voice
+	mov	cx, cs:playing
 	dec	cx
 	mov	ax, 7
-	call	cs:ultramid_intr
+	call	cs:gf1hook
 	call	CheckCallBack
 	sub	ax, ax
 loc_1080:	
 	pop	ds
 	retn
-ctv_uninstall	endp
+StopSound	endp
 
 DoCallBacks	proc near
 	cmp	cs:CallBacks, 0
@@ -547,8 +545,7 @@ msg3		db "Invalid command line",0Dh,0Ah,'$'
 msg4		db "Sound Driver isn't in memory",0Dh,0Ah,'$'
 msg5		db "Sound Driver unloaded",0Dh,0Ah,'$'
 msg5a		db "Sound Driver can't be unloaded, unload MIDPAK first.",0Dh,0Ah,'$'
-param		dw 4 dup( 0)		
-					
+param		dw 4 dup( 0)					
 Installed	dw 0			
 					
 LoadSound	proc near				
@@ -808,8 +805,8 @@ HardwareInit	proc near
 loc_15D9:			
 	mov	ah, 35h
 	int	21h		; DOS -	2+ - GET INTERRUPT VECTOR
-	mov	di, offset aDIGPAK   ; "DIGPAK"
-	mov	si, offset aUltramid ; "ULTRAMID"
+	mov	di, offset DIGPAK   ; "DIGPAK"
+	mov	si, offset chk_hook_str ; "ULTRAMID"
 	push	cx
 	mov	cx, 8
 	cld
@@ -824,26 +821,26 @@ loc_15F3:
 	pop	ds
 	mov	ah, 35h
 	int	21h		; DOS -	2+ - GET INTERRUPT VECTOR
-	mov	word ptr cs:ultramid_intr, bx
-	mov	word ptr cs:ultramid_intr+2, es
+	mov	word ptr cs:gf1hook, bx
+	mov	word ptr cs:gf1hook+2, es
 	mov	ax, 1Ah		; ultramid application start
-	call	cs:ultramid_intr
+	call	cs:gf1hook
 	mov	ax, 18h		; ultramid add external	semaphore
 	mov	bx, cs
 	mov	dx, offset INDIGPAK
-	call	cs:ultramid_intr
-	mov	word ptr cs:GUSSound.um_stereo_mem+2, cs
-	mov	word ptr cs:GUSSound.um_stereo_mem, offset ultramid_buffer
-	mov	word ptr cs:GUSSound.um_callback_addr+2, cs
-	mov	word ptr cs:GUSSound.um_callback_addr, offset ultramid_handler
-	mov	cs:GUSSound.um_pan, 7
-	mov	cs:GUSSound.um_volume, (offset PlaySound+1)
+	call	cs:gf1hook
+	mov	word ptr cs:umss.um_stereo_mem+2, cs
+	mov	word ptr cs:umss.um_stereo_mem, offset ultramid_buffer
+	mov	word ptr cs:umss.um_callback_addr+2, cs
+	mov	word ptr cs:umss.um_callback_addr, offset um_callback
+	mov	cs:umss.um_pan, 7
+	mov	cs:umss.um_volume, (offset PlaySound+1)
 	mov	ax, 13h		; ultramid allocate memory
 	xor	bx, bx
 	mov	dx, 2000h	; memory size
-	call	cs:ultramid_intr
-	mov	word ptr cs:GUSSound.um_gf1mem,	ax
-	mov	word ptr cs:GUSSound.um_gf1mem+2, dx
+	call	cs:gf1hook
+	mov	word ptr cs:umss.um_gf1mem,	ax
+	mov	word ptr cs:umss.um_gf1mem+2, dx
 	or	ax, dx
 	cmp	ax, 0
 	jz	short loc_165F

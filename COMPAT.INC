@@ -1,6 +1,7 @@
 
 USE_TASM_CODES	equ	1	;define to generate tasm compatible opcodes
 ;USE_LEA	equ	1	;define to be 100% accurate with code, slower, not tasm compatible
+USE_NOP_CODES	equ	1	;define to generate tasm compatible opcodes
 
 xlea	macro	v1, v2
 IFDEF	USE_LEA
@@ -79,10 +80,15 @@ ELSE
 ENDIF
 	endm	
 
+nope	macro
+IFDEF 	USE_NOP_CODES
+	nop
+ENDIF
+	endm
+
 IFDEF MODEL		;NOT A GOOD IDEA, true for small / tiny models only 
 % ECHO MODEL
 ELSE
 @CodeSize 	EQU 0
 @DataSize	EQU 0
 ENDIF
-

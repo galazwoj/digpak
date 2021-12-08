@@ -1,0 +1,59 @@
+487,490c487,492
+< 86B5:0F0D  C8 0000 00				enter	0,0			; Procedure entry
+< 86B5:0F11  1E					push	ds
+< 86B5:0F12  56					push	si
+< 86B5:0F13  57					push	di
+---
+> 86B5:0F0D  55					push	bp
+> 86B5:0F0E  8B EC				mov	bp,sp
+> 86B5:0F10  1E					push	ds
+> 86B5:0F11  56					push	si
+> 86B5:0F12  57					push	di
+> 86B5:0F13  90					nop
+551c553
+< 86B5:0FCE  C9					leave				; Procedure exit
+---
+> 86B5:0FCE  5D					pop	bp
+697c699
+< 86B5:10C3  05 0001				add	ax,1
+---
+> 86B5:10C3  83 C0 01				add	ax,1
+777,778c779,780
+< 86B5:117F  32
+---
+> 86B5:117F  34
+920c922
+< 86B5:1392  3D 0002				cmp	ax,2
+---
+> 86B5:1392  83 F8 02				cmp	ax,2
+947c947,949
+< 86B5:13B9  3D 0002				cmp	ax,2
+---
+> 86B5:13B9  83 F8 02				cmp	ax,2
+959c961
+< 86B5:13CB  3D 0003				cmp	ax,3
+---
+> 86B5:13CB  83 F8 03				cmp	ax,3
+986c988
+< 86B5:13F4  3D 0002				cmp	ax,2
+---
+> 86B5:13F4  83 F8 02				cmp	ax,2
+1164c1166,1167
+< 86B5:14F4  8B E5				mov	sp,bp
+---
+> 86B5:14F4  90					nop
+> 86B5:14F5  90					nop
+1227c1230,1231
+< 86B5:1550  8B E5				mov	sp,bp
+---
+> 86B5:1550  90					nop
+> 86B5:1551  90					nop
+1345c1349
+< 86B5:16CA  3D 0000				cmp	ax,0
+---
+> 86B5:16CA  83 F8 00				cmp	ax,0
+1356c1362
+< 86B5:16DD  3D 0000				cmp	ax,0
+---
+> 86B5:16DD  83 F8 00				cmp	ax,0
+ 
