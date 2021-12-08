@@ -205,9 +205,7 @@ FUNCT2:
 	xor	dx,dx			; Not looping
 
  if MONOSCR
-.286
 	push	24
-.8086
         call    reportmono              ; the monochrome screen.
     endif
 
@@ -1004,12 +1002,10 @@ FUNCT15:
 FUNCT16:
 	call	ReportDMAC
 
- if MONOSCR
-.286
+if MONOSCR
 	push	24
-.8086
         call    reportmono              ; the monochrome screen.
-    endif
+endif
 
 	ClearSemaphoreIRET
 
