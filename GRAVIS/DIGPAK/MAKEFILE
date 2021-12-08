@@ -5,6 +5,8 @@ gf166.com:      shell.asm ..\..\compat.inc ..\..\soundrv.inc ..\..\prologue.mac 
 clean:
 	del *.obj
 	del *.map
-	del *.tds
-	del *.obj
-	del *.com
+	del *.lst
+
+cclean:	clean
+	-del *.com
+        

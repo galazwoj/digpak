@@ -4,6 +4,9 @@ gf1digi.adv: gf1digi.asm ..\ail.inc ..\ail.mac ..\vol.inc ..\ultmidi.inc
 
 clean:
 	del *.obj
-	del *.adv
 	del *.map
 	del *.lst
+
+cclean:	clean
+	-del *.adv
+        

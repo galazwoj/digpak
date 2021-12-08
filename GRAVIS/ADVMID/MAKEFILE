@@ -4,6 +4,9 @@ gf1midi.adv: xmidi.asm mt32.inc mpu401.inc ..\ail.inc ..\ail.mac ..\ultmidi.inc
 
 clean:
 	del *.obj
-	del *.adv
 	del *.map
 	del *.lst
+
+cclean:	clean
+	-del *.adv
+        

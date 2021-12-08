@@ -20,3 +20,15 @@ clean:
 	cd DIGPAK
 	make clean
 	cd ..
+
+cclean:
+	cd ADVDIG
+	make cclean	
+	cd ..
+	
+	cd ADVMID
+	make cclean
+	cd ..
+	cd DIGPAK
+	make cclean
+	cd ..
