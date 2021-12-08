@@ -1,34 +1,35 @@
+#
+# use nmake /I
+#
 all:
 	cd ADVDIG
-	make	
+	-nmake	
 	cd ..
 	cd ADVMID
-	make
+	-nmake
 	cd ..
 	cd DIGPAK
-	make
+	nmake
 	cd ..
 
 clean:
 	cd ADVDIG
-	make clean	
+	nmake clean	
 	cd ..
-	
 	cd ADVMID
-	make clean
+	nmake clean
 	cd ..
 	cd DIGPAK
-	make clean
+	nmake clean
 	cd ..
 
 cclean:
 	cd ADVDIG
-	make cclean	
+	nmake cclean	
 	cd ..
-	
 	cd ADVMID
-	make cclean
+	nmake cclean
 	cd ..
 	cd DIGPAK
-	make cclean
+	nmake cclean
 	cd ..

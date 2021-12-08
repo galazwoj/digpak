@@ -3,9 +3,9 @@ gf1midi.adv: xmidi.asm mt32.inc mpu401.inc ..\ail.inc ..\ail.mac ..\ultmidi.inc
    	ml /AT /Cp /DMT32 /DMPU401 /I.. /Fegf1midi.adv /Fogf1midi /Flgf1midi xmidi.asm
 
 clean:
-	del *.obj
-	del *.map
-	del *.lst
+	-del *.obj
+	-del *.map
+	-del *.lst
 
 cclean:	clean
 	-del *.adv

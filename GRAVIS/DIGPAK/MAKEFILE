@@ -3,9 +3,9 @@ gf166.com:      shell.asm ..\..\compat.inc ..\..\soundrv.inc ..\..\prologue.mac 
 	ml /AT /Cp /I.. /I..\.. /Fegf166 /Fogf166 /Flgf166 /Fmgf166 shell.asm	
 
 clean:
-	del *.obj
-	del *.map
-	del *.lst
+	-del *.obj
+	-del *.map
+	-del *.lst
 
 cclean:	clean
 	-del *.com

@@ -1,11 +1,11 @@
 
 gf1digi.adv: gf1digi.asm ..\ail.inc ..\ail.mac ..\vol.inc ..\ultmidi.inc
-   	ml /AT /Cp /DSBSTD /I.. /Fegf1digi.adv /Fogf1digi /Flgf1digi gf1digi.asm
+   	ml /AT /Cp /DSBSTD /I.. /Fegf1digi.adv /Fogf1digi /Flgf1digi gf1digi.asm /link 
 
 clean:
-	del *.obj
-	del *.map
-	del *.lst
+	-del *.obj
+	-del *.map
+	-del *.lst
 
 cclean:	clean
 	-del *.adv
