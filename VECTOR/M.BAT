@@ -1,1 +1,0 @@
-msmake vector.mak

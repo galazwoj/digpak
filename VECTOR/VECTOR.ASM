@@ -1,12 +1,13 @@
-	P386
-	LOCALS			;; Enable local labels
-        IDEAL                   ;; Use Turbo Assembler's IDEAL mode
-	JUMPS
-        INCLUDE "PROLOGUE.MAC"          ;; common prologue
+
+		.model tiny, C
+		
+	INCLUDE COMPAT.INC
+        INCLUDE PROLOGUE.MAC          ;; common prologue
+	INCLUDE SOUNDRV.INC
 
 DEBUGGING equ	0
 
-Macro	Nibble
+Nibble	Macro
 	LOCAL	@@OK
 	push	eax
 	and	eax,0Fh
@@ -21,7 +22,7 @@ Macro	Nibble
 	shr	eax,4		 ; down one nibble
 	endm
 
-Macro	HEXPRINT2      reg,xloc,yloc
+HEXPRINT2 Macro  reg,xloc,yloc
 	push	es
 	pusha
 	mov	eax,reg
@@ -45,34 +46,13 @@ Macro	HEXPRINT2      reg,xloc,yloc
 	pop	es
 	endm
 
-
-Macro	IN_TSR
-	push	ds
-	push	es
-	push	si
-	push	di
-	mov	ax,cs
-	mov	ds,ax
-	mov	es,ax
-	endm
-
-Macro	OUT_TSR
-	pop	di
-	pop	si
-	pop	es
-	pop	ds
-	endm
-
 KINT    equ     66h
 
-SEGMENT  _TEXT PARA PUBLIC 'CODE'
-	 ENDS
+	.code
+	.386
+	org 100h
+	assume es:nothing, ss:nothing
 
-	ASSUME	CS: _TEXT, DS: _TEXT, SS: NOTHING, ES: NOTHING
-
-
-SEGMENT _TEXT
-	org	100h
 START:
 	jmp	LoadSound		; Load the digitized sound driver
 	db	"VECTOR",0,13,10
@@ -80,52 +60,50 @@ IDENTIFIER:
 	db	"REAL-MODE INTERUPT VECTOR TRAPPER",0,13,10
 	org	200h		; Beginning address of jumps.
 	jmp	InstallInterupt 	; Install the interupt vector.
+
 JUMPLOC dd	?	; Jump location.
 KJUMP	FARPTR	<>		; Address
 OLDIN	FARPTR	<>		; Original interupt vector.
 ID	db	'VECT'          ; Interupt identifier string.
 IND     db      'KR'            ; 4B52h indicates a kernel installed interupt.
-Proc	SoundInterupt far
+
+SoundInterupt Proc	far
 IF	DEBUGGING
 	call	DeburstLine
 ENDIF
 	cmp	eax,301h		; simulate far procedure call?
 	jne	@@CHAIN
-	mov	[word cs:JUMPLOC],cx	; offset
-	mov	[word cs:JUMPLOC+2],bx	; segment
+	mov	[word ptr cs:JUMPLOC],cx	; offset
+	mov	[word ptr cs:JUMPLOC+2],bx	; segment
 	call	[cs:JUMPLOC]	; Indirect far call to this location.
 	iret
 @@CHAIN:
 	jmp	[cs:OLDIN.DPTR] 	; Chain to original interrupt vector.
-	endp
+SoundInterupt	endp
 
-Proc    InstallInterupt         far
+InstallInterupt	Proc    far
 	IN_TSR
 	push	cs
-	lea	ax,[SoundInterupt]
+	xlea	ax,[SoundInterupt]
 	push	ax
 	mov	ax,KINT
 	push	ax
-	call	InstallInt		;; Install the interupt.
+	call	InstallINT		;; Install the interupt.
 	add	sp,6			;; clean up stack
-
 	OUT_TSR
 	iret
-	endp
+InstallInterupt	endp
 
-Proc	InstallINT near
-	ARG	INTNO:WORD,IOFF:WORD,ISEG:WORD
-	PENTER	0
+InstallINT PROC NEAR C INTNO:WORD,IOFF:WORD,ISEG:WORD
 	PushCREGS
-
 	mov	ax,[INTNO]	; get the interupt vector.
         mov     di,ax           ; save interupt vector into DI as well
 	mov	si,[IOFF]	; get offset
 	mov	ds,[ISEG]	; get segment.
         mov     ah,35h          ; Get interupt vector
 	int	21h		; Do DOS call to get vector.
-	mov	[ds:si-10],bx	; Save the old offset.
-	mov	[ds:si-8],es	; Save the old segment
+	mov	ds:[si-10],bx	; Save the old offset.
+	mov	ds:[si-8],es	; Save the old segment
         cld
         xor     ax,ax
         mov     es,ax
@@ -137,11 +115,11 @@ Proc	InstallINT near
 	stosw			; store it.
         sti
 	xor	ax,ax		; Success
-
 	PopCREGS
-	PLEAVE
+	nope
+	nope
 	ret
-	endp
+InstallINT endp
 
 IF	DEBUGGING
 
@@ -160,7 +138,7 @@ MSGDBUG db	"VECTOR    EAX=00000000 EBX=00000000 ECX=00000000"
 
 LINENO	dw	0
 
-Macro	GetKey
+GetKey	Macro	
 	LOCAL	@@RET
         mov     ah,07h
         int     21h
@@ -174,7 +152,7 @@ Macro	GetKey
 @@RET:
 	endm
 
-Proc	DeburstLine	near
+DeburstLine	Proc	near
 	push	ds
 	push	es
 	pusha
@@ -194,7 +172,7 @@ Proc	DeburstLine	near
 	mul	[LINENO]
 	add	ax,30*2
 	mov	di,ax		; Into DI
-	lea	si,[MSGDBUG]
+	xlea	si,[MSGDBUG]
 	mov	cx,size MSGDBUG
 @@GO:	movsb
 	inc	di
@@ -218,14 +196,12 @@ Proc	DeburstLine	near
 	pop	es
 	pop	ds
 	ret
-	endp
+DeburstLine endp
 
 ENDIF
 
-Proc	LoadSound	near
+LoadSound Proc	near
 	DOSTerminate
-	endp
+LoadSound endp
 
-	ENDS
 	end	START
-
