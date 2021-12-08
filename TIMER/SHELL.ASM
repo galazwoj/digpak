@@ -1,49 +1,31 @@
-        LOCALS                  ;; Enable local labels
-        IDEAL                   ;; Use Turbo Assembler's IDEAL mode
-	JUMPS
-        INCLUDE "PROLOGUE.MAC"          ;; common prologue
-	INCLUDE "SOUNDRV.INC"
 
-;; Set's the DIGPAK semaphore
-Macro	SetSemaphore
-	mov	[cs:INDIGPAK],1
-	endm
+		.model tiny, C
+		
+		INCLUDE COMPAT.INC
+	        INCLUDE PROLOGUE.MAC          ;; common prologue
+		INCLUDE SOUNDRV.INC
 
-;; Clear's the semaphore, and does an IRET
-Macro	ClearSemaphoreIRET
-	mov	[cs:INDIGPAK],0
-	iret
-	endm
-
-Macro	ClearSemaphore
-	mov	[cs:INDIGPAK],0
-	endm
-
-FOREGROUND	equ	0
-DIG_CVXSND	equ	1
-BACKFLLL	equ	0
-
+FOREGROUND	=	0
+DIG_CVXSND	=	1
+BACKFLLL	=	0
 
 KINT	equ	66h
 
-SEGMENT  _TEXT PARA PUBLIC 'CODE'
-	 ENDS
+		.code
+		org 100h
+		assume es:nothing, ss:nothing
 
-	ASSUME	CS: _TEXT, DS: _TEXT, SS: NOTHING, ES: NOTHING
-
-
-SEGMENT _TEXT
-	org	100h
 START:
 	jmp	LoadSound		; Load the digitized sound driver
-	db	"DIGPAK",0,13,10        ; Digitized Sound Package Identity String
-IDENTIFIER:
-	db	"TIMER BASED DRIVER",0,13,10
-	db	"The Audio Solution, Copyright (c) 1993",0,13,10
-	db	"Written by John W. Ratcliff",0,13,10
-	org	200h		; Beginning address of jumps.
-	jmp	InstallInterupt 	; Install the interupt vector.
-	jmp	DeInstallInterupt	; De-install the interupt.
+DIGPAK		db	"DIGPAK",0,13,10        ; Digitized Sound Package Identity String
+IDENTIFIER	db	"TIMER BASED DRIVER",0,13,10
+		db	"The Audio Solution, Copyright (c) 1993",0,13,10
+		db	"Written by John W. Ratcliff",0,13,10
+
+		org	200h		; Beginning address of jumps.
+		jmp	InstallInterupt 	; Install the interupt vector.
+		jmp	DeInstallInterupt	; De-install the interupt.
+
 DUMMYBASE	dw	-1
 DUMMYIRQ	dw	-1
 DUMMYEXTRA	dw	-1
@@ -73,12 +55,13 @@ JumpTable	dw	offset	FUNCT1
 		dw	offset	FUNCT17 ; Verify DMA block.
 		dw	offset	FUNCT18 ; Set PCM volume.
 
-BACKF	dw	0	; Backfill defaults to off
+BACKF		dw	0	; Backfill defaults to off
 
 JumpPtr 	dw	?
 PlayingSound	dw	0	; Flag true when sound sample is playing.
+
 CallBacks	dw	0	; Callback to application flag.
-LABEL		CALLBACK	DWORD	     ; Callback address label.
+CallBack	LABEL DWORD	     ; Callback address label.
 CallLow 	dw	0	; Low word of callback address.
 CallHigh	dw	0	; High word of callback address.
 CallDS		dw	0	; Value of DS register at callback time.
@@ -92,7 +75,8 @@ KJUMP	FARPTR	<>		; Address
 OLDIN	FARPTR	<>		; Original interupt vector.
 ID      db      'KERN'          ; 4B45524Eh Interupt identifier string.
 IND     db      'KR'            ; 4B52h indicates a kernel installed interupt.
-Proc	SoundInterupt far
+
+SoundInterupt Proc far
 ;;; Usage: DS:SI -> point to sound structure to play.
 ;; FUNCT1  AX = 0688h	 DigPlay
 ;; FUNCT2  AX = 0689h	 Sound Status
@@ -129,20 +113,21 @@ Proc	SoundInterupt far
 	shl	ax,1
 	add	ax,offset JumpTable
 	xchg	ax,bx
-	mov	bx,[cs:bx]
+	mov	bx,cs:[bx]
 	xchg	ax,bx
 	mov	[cs:JumpPtr],ax
 	jmp	[cs:JumpPtr]	;; Near jump will be modified!!
 @@CHAIN:
-	cmp	[OLDIN.XPTR.POFF],0
+	cmp	[cs:OLDIN.XPTR.POFF],0
 	jne	@@CHAIN2
-	cmp	[OLDIN.XPTR.PSEG],0
+	cmp	[cs:OLDIN.XPTR.PSEG],0
 	je	@@IRET
 @@CHAIN2:
 	jmp	[cs:OLDIN.DPTR] 	; Chain to original interrupt vector.
 @@IRET:
 	ClearSemaphoreIRET
-	endp
+SoundInterupt endp
+
 FUNCT1:
 ;;**************************************************************************
 ;:Function #1: DigPlay, Play an 8 bit digitized sound.
@@ -235,7 +220,7 @@ FUNCT5:
 ;;**************************************************************************
 	mov	ax,(PLAYBACK OR USESTIMER OR SHARESTIMER)
 	mov	bx,cs
-	lea	cx,[IDENTIFIER]
+	xlea	cx,[IDENTIFIER]
 	ClearSemaphoreIRET
 FUNCT6:
 ;;**************************************************************************
@@ -319,7 +304,7 @@ FUNCT8:
 ;:		terminated.
 ;;**************************************************************************
 	mov	[cs:PENDING],0	; Turn pending flag OFF when stop-sound called.
-	mov	[word cs:LOOPING],0
+	mov	[word ptr cs:LOOPING],0
 	cmp	[cs:PlayingSound],0	; Currently playing any sound?
 	je	@@CNT		; If not playing sound, nothing to stop...
 	call	StopSound
@@ -355,8 +340,8 @@ FUNCTB:
 ;;		DeInstall code.  Not to be called by an application program!
 ;;**************************************************************************
 	mov	[cs:CallBacks],0	;
-	mov	[word cs:CallBack],0
-	mov	[word cs:CallBack+2],0
+	mov	[word ptr cs:CallBack],0
+	mov	[word ptr cs:CallBack+2],0
 	ClearSemaphoreIRET
 FUNCTC:
 ;;**************************************************************************
@@ -391,7 +376,7 @@ FUNCTD:
 	PushAll 	; Save all registers.
 	push	cs
 	pop	es
-	lea	di,[LOOPSND]
+	xlea	di,[LOOPSND]
 	mov	cx,SIZE LOOPSND
 	rep	movsb
 	mov	ax,068Fh	; Stop any currently playing sound.
@@ -401,14 +386,14 @@ FUNCTD:
 	mov	ds,ax
 	mov	dx,ax		;
 	mov	ax,068Eh
-	lea	bx,[LoopBack]	;
+	xlea	bx,[LoopBack]	;
 	int	66h		; Set loop callback.
 	PopAll
 	push	cs
 	pop	ds
-	lea	si,[LOOPSND]
-	mov	[word cs:LOOPSOUND],si
-	mov	[word cs:LOOPSOUND+2],ds
+	xlea	si,[LOOPSND]
+	mov	[word ptr cs:LOOPSOUND],si
+	mov	[word ptr cs:LOOPSOUND+2],ds
 	mov	[cs:FROMLOOP],1 ; Set from looping semephore
 	mov	ax,068Bh	; Do FUNCT4
 	jmp	FUNCT4		; Do a DigPlay2
@@ -438,14 +423,14 @@ FUNCTE:
 	push	di
 	push	cs
 	pop	es
-	lea	di,[PENDSND]	; Pending sound.
+	xlea	di,[PENDSND]	; Pending sound.
 	mov	cx,SIZE PENDSND
 	rep	movsb
 	mov	[cs:PENDING],1
 	mov	[cs:CallBacks],1
-	mov	[word cs:CallBack],offset PlayPending
-	mov	[word cs:CallBack+2],cs
-	mov	[word cs:CallDS],cs
+	mov	[word ptr cs:CallBack],offset PlayPending
+	mov	[word ptr cs:CallBack+2],cs
+	mov	[word ptr cs:CallDS],cs
 	pop	di
 	pop	es
 	mov	ax,1		; Posted as pending.
@@ -462,9 +447,9 @@ FUNCTF:
 	cli		; Clear interrupts while we make this determination.
 	mov	ax,[cs:PlayingSound]
 	or	ax,ax		; Currently playing a sound?
-	jnz	@@POST		; yes->try to post pending.
+	jnz	@@POST3		; yes->try to post pending.
 	ClearSemaphoreIRET
-@@POST: cmp	[cs:PENDING],1	; Have a sound pending?
+@@POST3:cmp	[cs:PENDING],1	; Have a sound pending?
 	je	@@PEND		; yes, return pending status.
 	mov	ax,1		; Sound is playing, but no sound is pending.
 	ClearSemaphoreIRET
@@ -516,8 +501,8 @@ FUNCT12:
 ;;
 ;;**************************************************************************
 	mov	dx,cs		; Code segment.
-	lea	ax,[PENDING]	; Address of pending flag.
-	lea	bx,[INDIGPAK]	; Address of semaphore address.
+	xlea	ax,[PENDING]	; Address of pending flag.
+	xlea	bx,[INDIGPAK]	; Address of semaphore address.
 	ClearSemaphoreIRET
 
 FUNCT13:
@@ -605,54 +590,52 @@ FUNCT18:
 	xor	ax,ax		; Default, volume not set.
 	ClearSemaphoreIRET
 
-Macro  GET20BIT
-       PUSH   CX
-       MOV    CL,4
-       ROL    DX,CL
-       MOV    CX,DX
-       AND    DX,0FH
-       AND    CX,0FFF0H
-       ADD    AX,CX
-       ADC    DX,0
-       POP    CX
-       endm
+GET20BIT Macro  	
+       	PUSH   CX
+       	MOV    CL,4
+       	ROL    DX,CL
+       	MOV    CX,DX
+       	AND    DX,0FH
+       	AND    CX,0FFF0H
+       	ADD    AX,CX
+       	ADC    DX,0
+       	POP    CX
+       	endm
 
-Proc    CheckBoundary   near
-	ARG	SOURCE:DWORD,SLEN:WORD
-	PENTER	0
-
-	mov	ax,[word SOURCE]
-	mov	dx,[word SOURCE+2]
+CheckBoundary Proc near C SOURCE:DWORD,SLEN:WORD
+	mov	ax,[word ptr SOURCE]
+	mov	dx,[word ptr SOURCE+2]
 	GET20BIT		; Into 20 bit mode.
 	mov	bx,dx		; Save DMA page.
-	mov	ax,[word SOURCE]
-	mov	dx,[word SOURCE+2]
+	mov	ax,[word ptr SOURCE]
+	mov	dx,[word ptr SOURCE+2]
 	add	ax,[SLEN]		; Point to end.
 	GET20BIT
 	mov	ax,1		; Default is OK.
 	cmp	bl,dl		; Same DMA page?
-	je	@@OK
+	je	@@OK2
 	xor	ax,ax		; Didn't work.
-@@OK:
-	PLEAVE
+@@OK2:
+	nope
+	nope
 	ret
-	endp
+CheckBoundary endp
 
 
-Proc	PlayPending	far
+PlayPending Proc	far
 	cmp	[PENDING],1  ; Pending?
 	jne	@@not
 	mov	[PENDING],0
 	mov	[cs:CallBacks],0	; No longer have one pending..
-	lea	si,[PENDSND]	; Address of pending sound.
+	xlea	si,[PENDSND]	; Address of pending sound.
 	call	DoSoundPlay	; Do a sound play call.
 	ret
 @@not:
 	mov	[cs:CallBacks],0	; Disable callbacks.
 	ret
-	endp
+PlayPending	endp
 
-Proc	DoSoundPlay	near
+DoSoundPlay Proc	near
 	PushCREGS		; Save all of the important C registers.
 	call	SetAudio
 	mov	[PlayingSound],1
@@ -660,10 +643,10 @@ Proc	DoSoundPlay	near
 	call	PlaySound		; Restore important C registers.
 	PopCREGS
 	ret
-	endp
+DoSoundPlay endp
 
 
-Proc	CheckCallBack	near
+CheckCallBack Proc	near
 	cmp	[cs:CallBacks],0	; Callbacks enabled?
 	je	@@GOUT		; no, exit.
 	PushAll 		; Save all registers
@@ -672,13 +655,14 @@ Proc	CheckCallBack	near
 	PopAll			; Restore all registers.
 @@GOUT:
 	ret
-	endp
+CheckCallBack endp
 
 INDIGPAK	dw	0	; Inside DigPak semaphore.
 
 FROMLOOP	dw	0
 SAVECALLBACK	dd	?	; Saved callback address.
 SAVECALLDS	dw	?
+
 LOOPING 	dw	0	; True if we were looping.
 
 LOOPSOUND	dd	?
@@ -687,35 +671,35 @@ LOOPSND 	SOUNDSPEC	<>
 PENDING 	dw	0	; True, when second sound sample is pending.
 PENDSND         SOUNDSPEC <>    ; Sound structure of pending sound.
 
-Proc	LoopBack	far
+LoopBack Proc	far
 	mov	ax,068Bh	; Play preformated data.
 	mov	[cs:FROMLOOP],1
 	lds	si,[LOOPSOUND]	;
 	int	66h		; Start playing the sound again.
 	ret
-	endp
+LoopBack endp
 
-Proc    SetAudio        near
-	mov	[ds:(SOUNDSPEC ptr si).ISPLAYING.XPTR.POFF],offset PlayingSound
-	mov	[ds:(SOUNDSPEC ptr si).ISPLAYING.XPTR.PSEG],cs
-	les	bx,[ds:(SOUNDSPEC ptr si).PLAYADR.DPTR]
-	mov	cx,[ds:(SOUNDSPEC ptr si).PLAYLEN]
-	mov	dx,[ds:(SOUNDSPEC si).FREQUENCY]
+SetAudio Proc    near
+	mov	ds:[si].SOUNDSPEC.ISPLAYING.XPTR.POFF,offset PlayingSound
+	mov	ds:[si].SOUNDSPEC.ISPLAYING.XPTR.PSEG,cs
+	les	bx,ds:[si].SOUNDSPEC.PLAYADR.DPTR
+	mov	cx,ds:[si].SOUNDSPEC.PLAYLEN
+	mov	dx,ds:[si].SOUNDSPEC.FREQUENCY
 	push	cs
 	pop	ds		; DS = Code group.
 	ret
-	endp
+SetAudio	endp
 
-Proc	EndLoop near
+EndLoop Proc	near
 	mov	[cs:CallBacks],0	;
-	mov	[word cs:CallBack],0
-	mov	[word cs:CallBack+2],0
-	mov	[word cs:LOOPING],0
+	mov	[word ptr cs:CallBack],0
+	mov	[word ptr cs:CallBack+2],0
+	mov	[word ptr cs:LOOPING],0
 	call	StopSound
 	ret
-	endp
+EndLoop	endp
 
-Proc	CompleteSound	near
+CompleteSound Proc	near
 	cmp	[cs:FROMLOOP],1    ; In loop callback?
 	jne	@@YES
 	call	EndLoop 	; don't wait for loop to complete, end it!
@@ -723,11 +707,11 @@ Proc	CompleteSound	near
 @@WT:	cmp	[cs:PlayingSound],0	; Wait until last sound completed.
 	jne	@@WT
 	ret
-	endp
+CompleteSound 	endp
 
-Proc	Compute256	near
+Compute256 Proc	near
 	cmp	dx,256
-	jle	@@OK
+	jle	@@OK3
 	push	bx
 	push	dx
 	mov	ax,cx
@@ -738,11 +722,11 @@ Proc	Compute256	near
 	mov	cx,ax
 	pop	bx
 	mov	dx,256		; Playback freq is now 9000!
-@@OK:
+@@OK3:
 	ret
-	endp
+Compute256 endp
 
-Proc    PlaySound near
+PlaySound Proc    near
 ;; CX ->number of bytes in sound sample.
 ;; DS = Code group.
 ;; ES:BX -> far address of sound sample to be played.
@@ -781,9 +765,9 @@ Proc    PlaySound near
 	pop	dx		; Get back rate.
 	call	trate		; Set the timer rate.
 	ret
-	endp
+PlaySound	endp
 
-Proc	StopSound	near
+StopSound Proc	near
 	PushCREGS
 	push	cs
 	pop	ds
@@ -800,13 +784,13 @@ Proc	StopSound	near
 @@GOUT:
 	PopCREGS
 	ret
-	endp
+StopSound endp
 
 command_reg     equ 43h
 channel_0       equ 40h
 channel_2       equ 42h         ; speaker's frequency oscillator.
 
-Proc	trate  near
+trate 	Proc	 near
 ; This routine sets the rate at which the timer routine is
 ; interupted and the cutoff value for one bit sound
 ; called as:
@@ -821,12 +805,11 @@ Proc	trate  near
         mov     al,ah
         out     channel_0,al
         ret
-	endp
-
+trate	endp
 
 OldTimer FARPTR <>	; Original timer interupt vector.
 
-Proc	tinstall near
+tinstall Proc	near
 ; Install timer interupt routine
         push    es              ; save extra segment
 	xor	ax,ax
@@ -835,17 +818,17 @@ Proc	tinstall near
 	mov	[OldTimer.XPTR.POFF],ax
 	mov	ax,[es:INT8SEG]
 	mov	[OldTimer.XPTR.PSEG],ax
-	mov	[word es:INT8OFF],offset timer2
+	mov	[word ptr es:INT8OFF],offset timer2
 	mov	[es:INT8SEG],cs
 	mov	[flag],0	; Re-entrency flag, starts at 0.
         pop     es
         RET
-	ENDP
+tinstall ENDP
 
-INT8OFF         equ     8*4
-INT8SEG         equ     8*4+2
+INT8OFF  equ     8*4
+INT8SEG  equ     8*4+2
 
-Proc	rtimer near
+rtimer	Proc	 near
 ; This routine restores the timer interupt to what it was originally.
 	push	ds
 	push	dx
@@ -856,15 +839,15 @@ Proc	rtimer near
 	xor	ax,ax
 	mov	ds,ax		; Segment zero
 	mov	ax,[cs:OldTimer.XPTR.POFF] ; get offset.
-	mov	[ds:INT8OFF],ax      ; Set offset.
+	mov	ds:[INT8OFF],ax      ; Set offset.
 	mov	ax,[cs:OldTimer.XPTR.PSEG] ; get segment.
-	mov	[ds:INT8SEG],ax
+	mov	ds:[INT8SEG],ax
 
 	pop	ax
 	pop	dx
 	pop	ds
         RET
-	ENDP
+rtimer	ENDP
 
 flag	dw	0
 tvalue	dw	?
@@ -874,17 +857,20 @@ SEGSAMP dw	?		; Segment of sound sample.
 
 TOTALLENGTH	dw	?	;
 STARTADDRESS	dw	?	; Starting address of sample
-	ALIGN  16
-Proc    timer2  FAR
+
+;	ALIGN  16
+ 	db 13 dup (0)
+
+timer2 	Proc    FAR
 	SetSemaphore
 	push	ax		; Save ax
 	push	ds		; Save data segment
 @@T3:	mov	ds,[cs:SEGSAMP] ; Place into data segment.
-LABEL	ADDRESS WORD
-	mov	al,[1234h]	; Get offset of data sampel.
+ADDRESS LABEL	WORD
+	mov	al,ds:[1234h]	; Get offset of data sampel.	//XXX
 @@NEXT:
         inc     [cs:ADDRESS+1]
-LABEL   COMPARE WORD
+COMPARE LABEL	WORD
         cmp     [cs:ADDRESS+1],1234h      ; Hit end?
         je      @@OUT
 @@GOUT:
@@ -909,11 +895,9 @@ LABEL   COMPARE WORD
 @@NOTBACK:
 	call	StopSound
 	jmp short @@GOUT2
-	endp
+timer2	endp
 
-
-
-LABEL	SUICIDE byte		;; Where to delete ourselves from memory
+SUICIDE LABEL	byte		;; Where to delete ourselves from memory
 hard	db	'$'
 msg0    db      "No digital sound card"
 	db	" - Copyright (c) 1993, THE Audio Solution:v3.30",13,10,'$'
@@ -927,7 +911,7 @@ msg5	db	"DIGPAK Sound Driver unloaded",13,10,'$'
 msg5a	db	"Sound Driver can't be unloaded, unload MIDPAK first.",13,10,'$'
 param   dw      4 dup(?)        ;; Used for parameter passing.
 Installed	dw	0
-Proc	LoadSound near
+LoadSound Proc	near
 	mov	ax,cs			;;
 	mov	ds,ax			;; establish data segment
 	mov	es,ax			;; point ES to PSP
@@ -946,7 +930,7 @@ Proc	LoadSound near
 	je	ULOAD
 @@BC:
 	Message msg3			;; Invalid command line
-				DOSTerminate
+	DOSTerminate
 
 ULOAD:	mov	ax,[Installed]
 	or	ax,ax
@@ -986,18 +970,17 @@ NoArg:	or	ax,ax			;; Already loaded?
 ;;; The Kernel is now installed.
 ;;; Announce the Kernel's presence.
 	Message msg0
-				DosTSR  SUICIDE         ;; Terminate ourselves bud.
-	endp
+	DosTSR  SUICIDE         ;; Terminate ourselves bud.
+LoadSound endp
 
-Proc	InstallInterupt 	far
+InstallInterupt Proc	far
 	int	3
 	mov	ax,0B800h
 	mov	es,ax
-	mov	[byte es:0],'A'
+	mov	[byte ptr es:0],'A'
 	mov	bx,1234h
 	mov	ax,1
 	ret
-
 
 	IN_TSR
 
@@ -1009,15 +992,15 @@ Proc	InstallInterupt 	far
 	mov	[param+2],offset SoundInterupt ;; offset of interupt routine
 	mov	[param+4],cs		;; Our code segment.
 	PushEA	param			;; push the address of the parameter list
-	call	InstallInt		;; Install the interupt.
+	call	InstallINT		;; Install the interupt.
 	add	sp,2			;; clean up stack
 @@OUT:
 
 	OUT_TSR
 	ret
-	endp
+InstallInterupt	endp
 
-Proc	DeInstallInterupt	far
+DeInstallInterupt Proc	far
 	IN_TSR
 	mov	[param],KINT		;; Interupt requested to be unloaded.
 	PushEA	param			;; pass parameter.
@@ -1025,24 +1008,23 @@ Proc	DeInstallInterupt	far
 	add	sp,2			;; clean up stack
 	OUT_TSR
 	ret
-	endp
+DeInstallInterupt endp
 
-
-Proc	CheckIn near
+CheckIn	Proc	near
 	push	ds		; Save ds register.
 	push	si
 
 	mov	si,66h*4h	; get vector number
         xor     ax,ax           ; zero
         mov     ds,ax           ; point it there
-	lds	si,[ds:si]	; get address of interupt vector
+	lds	si,ds:[si]	; get address of interupt vector
         or      si,si           ; zero?
-				jz      @@CIOUT         ; exit if zero
+	jz      @@CIOUT         ; exit if zero
         sub     si,6            ; point back to identifier
 
-	cmp	[word si],'IM'  ; Midi driver?
+	cmp	word ptr [si],'IM'  ; Midi driver?
 	jne	@@NEX
-	cmp	[word si+2],'ID'  ; full midi driver identity string?
+	cmp	word ptr [si+2],'ID'  ; full midi driver identity string?
 	jne	@@NEX
 
 ;; Ok, a MIDI driver is loaded at this address.
@@ -1056,62 +1038,57 @@ Proc	CheckIn near
 	mov	ax,2		; Sound driver resident, through MIDPAK.
 	jmp short @@EXT
 @@NEX:
-	cmp	[word si],454Bh ; equal?
-				jne     @@CIOUT         ; exit if not equal
-	cmp	[word si+2],4E52h    ; equal?
+	cmp	word ptr [si],454Bh ; equal?
+	jne     @@CIOUT         ; exit if not equal
+	cmp	word ptr [si+2],4E52h    ; equal?
         jne     @@CIOUT
-@@OK:	mov	ax,1
+     	mov	ax,1
 @@EXT:
 	pop	si
 	pop	ds
 	ret
 @@CIOUT: xor	ax,ax		; Zero return code.
 	jmp short @@EXT
-	endp
+CheckIn	endp
 
-
-
-Proc	InstallINT near
-	ARG	DATA:WORD
+InstallINT Proc	near C MYDATA:WORD
 ;; Usage: IntallINT(&parms)
 ;; offset 0: interupt
 ;;        2: offset of interupt code
 ;;        4: segment of interupt code
-	PENTER	0
 	PushCREGS
 
-	mov	bx,[DATA]	; Get address of parameter table
+	mov	bx,[MYDATA]	; Get address of parameter table
         mov     ax,[bx]         ; get the interupt vector.
         mov     di,ax           ; save interupt vector into DI as well
         mov     si,[bx+2]       ; get offset
         mov     ds,[bx+4]       ; get segment.
         mov     ah,35h          ; Get interupt vector
-				int     21h             ; Do DOS call to get vector.
-	mov	[ds:si-10],bx	; Save the old offset.
-	mov	[ds:si-8],es	; Save the old segment
+	int     21h             ; Do DOS call to get vector.
+	mov	ds:[si-10],bx	; Save the old offset.
+	mov	ds:[si-8],es	; Save the old segment
         cld
         xor     ax,ax
         mov     es,ax
 	ShiftL	di,2		;
-				mov     ax,si           ; get offset.
+	mov     ax,si           ; get offset.
         cli
         stosw
         mov     ax,ds           ; code segment
-				stosw                   ; store it.
+	stosw                   ; store it.
         sti
-				xor     ax,ax           ; Success
+	xor     ax,ax           ; Success
 
 	PopCREGS
-	PLEAVE
+	nope
+	nope
 	ret
-	endp
+InstallINT	endp
 
-Proc	UnLoad near
-	ARG	DATA:WORD
+UnLoad	Proc  near C MYDATA:WORD
 ;; Usage: UnLoad(&vector)
 ;; Returns: AX = 0 success
 ;           AX nonzero, couldn't unload interupt vector.
-	PENTER	0
 	PushCREGS
 
 	mov	ax,68Fh ; Stop sound playback!
@@ -1120,21 +1097,21 @@ Proc	UnLoad near
 	mov	ax,692h ; Deinstall hardware vectors.
 	int	KINT
 
-	mov	bx,[DATA]	; get address of interupt vector
+	mov	bx,[MYDATA]	; get address of interupt vector
 				mov     bx,[bx]         ; get the interupt vector.
         mov     dx,bx           ; put it into DX as well
 	ShiftL	bx,2		;
         xor     ax,ax
         mov     ds,ax           ; Segment zero
-	lds	si,[ds:bx]	; get address of interupt vector
+	lds	si,ds:[bx]	; get address of interupt vector
 				or      si,si           ; zero?
 				jz      @@UOUT          ; exit if zero
-	cmp	[WORD ds:si-2],524Bh ;'KR' Is this a kernel installed interupt?
+	cmp	WORD ptr ds:[si-2],524Bh ;'KR' Is this a kernel installed interupt?
         push    ds              ; save DS
         mov     ax,dx           ; Get interupt vector.
 				mov     ah,25h          ; Do DOS 25h set interupt vector.
-	mov	dx,[ds:si-10]	 ; get old offset
-	mov	ds,[ds:si-8]	; get old segment
+	mov	dx,ds:[si-10]	 ; get old offset
+	mov	ds,ds:[si-8]	; get old segment
 				int     21h             ; set interupt vector.
         pop     ax              ; get back segment of program.
         mov     es,ax
@@ -1146,12 +1123,13 @@ Proc	UnLoad near
         mov     ah,49h          ; free memory.
         int     21h             ; free up the memory used by us.
 
-@@EXIT: PopCREGS
-	PLEAVE
+@@EXIT2:PopCREGS
+	nope
+	nope
         ret
 @@UOUT: mov     ax,1
-        jmp short @@EXIT
-	endp
+        jmp short @@EXIT2
+UnLoad	endp
 
 ;; This procedure parses the command line and builds an array of
 ;; pointers to each argument.  Arguments are seperated by space's.
@@ -1159,47 +1137,47 @@ Proc	UnLoad near
 _argc	 dw	 0	 ; The argument count
 _argv	dw	16 dup(0) ; Up to 16 arguments.
 command db	128 dup(?)
-Proc	ParseCommandLine	near
+
+ParseCommandLine Proc	near
 	mov	[_argc],0
-	cmp	[byte es:80h],2
+	cmp	[byte ptr es:80h],2
 	jb	@@END
 	xor	cx,cx
 	mov	cl,[es:80h]	; Get length.
 	SwapSegs
 	dec	cx		; Less one
-	lea	di,[command]
+	xlea	di,[command]
 	mov	si,82h
 	rep	movsb
 	push	cs
 	pop	ds
-	lea	di,[_argv]	; Argument list.
-	lea	si,[command]	; Start address.
+	xlea	di,[_argv]	; Argument list.
+	xlea	si,[command]	; Start address.
 @@SET:	inc	[_argc] 	; Increment argument counter.
 	mov	ax,si		; Base argument addres.
 	stosw
 @@NEX:	lodsb			; Get characters until we hit space of eol
 	cmp	al,32
 	jne	@@NEX2
-	mov	[byte ds:si-1],0 ; Turn space into a zero byte.
+	mov	byte ptr ds:[si-1],0 ; Turn space into a zero byte.
 	jmp short @@SET
 @@NEX2:
 	cmp	al,13
 	je	@@END1
 	or	al,al
 	jnz	@@NEX		; Keep skipping to next arg.
-@@END1: mov	[byte ds:si-1],0	; Zero byte terminate last arg
+@@END1: mov	byte ptr ds:[si-1],0	; Zero byte terminate last arg
 @@END:
 	ret
-	endp
+ParseCommandLine endp
 
 ;;************************************************************************
 ;; Unique harware init code.
 ;;************************************************************************
-Proc	HardwareInit	near
+HardwareInit Proc	near
 	xor	ax,ax		;; success code by default.
 	ret
-	endp
-
-	ENDS
+HardwareInit endp
+        db 12 dup(0)
+	
 	end	START
-

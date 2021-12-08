@@ -1,0 +1,152 @@
+118c118
+< 86B5:02B8  25 000F				and	ax,0Fh
+---
+> 86B5:02B8  83 E0 0F				and	ax,0Fh
+121,122c121,122
+< 86B5:02BB  05 0030				add	ax,30h
+< 86B5:02BE  3D 0039				cmp	ax,39h
+---
+> 86B5:02BB  83 C0 30				add	ax,30h
+> 86B5:02BE  83 F8 39				cmp	ax,39h
+124,125c124,125
+< 86B5:02C3  2D 003A				sub	ax,3Ah
+< 86B5:02C6  05 0041				add	ax,41h
+---
+> 86B5:02C3  83 E8 3A				sub	ax,3Ah
+> 86B5:02C6  83 C0 41				add	ax,41h
+135,137c135,137
+< 86B5:02D9  25 000F				and	ax,0Fh
+< 86B5:02DC  05 0030				add	ax,30h
+< 86B5:02DF  3D 0039				cmp	ax,39h
+---
+> 86B5:02D9  83 E0 0F				and	ax,0Fh
+> 86B5:02DC  83 C0 30				add	ax,30h
+> 86B5:02DF  83 F8 39				cmp	ax,39h
+139,140c139,140
+< 86B5:02E4  2D 003A				sub	ax,3Ah
+< 86B5:02E7  05 0041				add	ax,41h
+---
+> 86B5:02E4  83 E8 3A				sub	ax,3Ah
+> 86B5:02E7  83 C0 41				add	ax,41h
+150,152c150,152
+< 86B5:02FA  25 000F				and	ax,0Fh
+< 86B5:02FD  05 0030				add	ax,30h
+< 86B5:0300  3D 0039				cmp	ax,39h
+---
+> 86B5:02FA  83 E0 0F				and	ax,0Fh
+> 86B5:02FD  83 C0 30				add	ax,30h
+> 86B5:0300  83 F8 39				cmp	ax,39h
+154,155c154,155
+< 86B5:0305  2D 003A				sub	ax,3Ah
+< 86B5:0308  05 0041				add	ax,41h
+---
+> 86B5:0305  83 E8 3A				sub	ax,3Ah
+> 86B5:0308  83 C0 41				add	ax,41h
+165,167c165,167
+< 86B5:031B  25 000F				and	ax,0Fh
+< 86B5:031E  05 0030				add	ax,30h
+< 86B5:0321  3D 0039				cmp	ax,39h
+---
+> 86B5:031B  83 E0 0F				and	ax,0Fh
+> 86B5:031E  83 C0 30				add	ax,30h
+> 86B5:0321  83 F8 39				cmp	ax,39h
+169,170c169,170
+< 86B5:0326  2D 003A				sub	ax,3Ah
+< 86B5:0329  05 0041				add	ax,41h
+---
+> 86B5:0326  83 E8 3A				sub	ax,3Ah
+> 86B5:0329  83 C0 41				add	ax,41h
+195,197c195,197
+< 86B5:0350  25 000F				and	ax,0Fh
+< 86B5:0353  05 0030				add	ax,30h
+< 86B5:0356  3D 0039				cmp	ax,39h
+---
+> 86B5:0350  83 E0 0F				and	ax,0Fh
+> 86B5:0353  83 C0 30				add	ax,30h
+> 86B5:0356  83 F8 39				cmp	ax,39h
+199,200c199,200
+< 86B5:035B  2D 003A				sub	ax,3Ah
+< 86B5:035E  05 0041				add	ax,41h
+---
+> 86B5:035B  83 E8 3A				sub	ax,3Ah
+> 86B5:035E  83 C0 41				add	ax,41h
+210,212c210,212
+< 86B5:0371  25 000F				and	ax,0Fh
+< 86B5:0374  05 0030				add	ax,30h
+< 86B5:0377  3D 0039				cmp	ax,39h
+---
+> 86B5:0371  83 E0 0F				and	ax,0Fh
+> 86B5:0374  83 C0 30				add	ax,30h
+> 86B5:0377  83 F8 39				cmp	ax,39h
+214,215c214,215
+< 86B5:037C  2D 003A				sub	ax,3Ah
+< 86B5:037F  05 0041				add	ax,41h
+---
+> 86B5:037C  83 E8 3A				sub	ax,3Ah
+> 86B5:037F  83 C0 41				add	ax,41h
+225,227c225,227
+< 86B5:0392  25 000F				and	ax,0Fh
+< 86B5:0395  05 0030				add	ax,30h
+< 86B5:0398  3D 0039				cmp	ax,39h
+---
+> 86B5:0392  83 E0 0F				and	ax,0Fh
+> 86B5:0395  83 C0 30				add	ax,30h
+> 86B5:0398  83 F8 39				cmp	ax,39h
+229,230c229,230
+< 86B5:039D  2D 003A				sub	ax,3Ah
+< 86B5:03A0  05 0041				add	ax,41h
+---
+> 86B5:039D  83 E8 3A				sub	ax,3Ah
+> 86B5:03A0  83 C0 41				add	ax,41h
+242,244c242,244
+< 86B5:03B3  25 000F				and	ax,0Fh
+< 86B5:03B6  05 0030				add	ax,30h
+< 86B5:03B9  3D 0039				cmp	ax,39h
+---
+> 86B5:03B3  83 E0 0F				and	ax,0Fh
+> 86B5:03B6  83 C0 30				add	ax,30h
+> 86B5:03B9  83 F8 39				cmp	ax,39h
+246,247c246,247
+< 86B5:03BE  2D 003A				sub	ax,3Ah
+< 86B5:03C1  05 0041				add	ax,41h
+---
+> 86B5:03BE  83 E8 3A				sub	ax,3Ah
+> 86B5:03C1  83 C0 41				add	ax,41h
+527c527
+< 86B5:068F  3A DA				cmp	bl,dl
+---
+> 86B5:068F  38 D3				cmp	bl,dl
+531c531
+< 86B5:0695  8B E5				mov	sp,bp
+---
+> 86B5:0695  90					nop
+533a534
+> 86B5:0696  90					nop
+840,845c841,845
+< 86B5:0883  87 DB 87 DB 87 DB			db	 87h,0DBh, 87h,0DBh, 87h,0DBh
+< 86B5:0889  87 DB 87 DB 87 DB			db	 87h,0DBh, 87h,0DBh, 87h,0DBh
+< 86B5:088F  90 
+---
+> 86B5:0883  000D[00]				db	13 dup (0)
+1010c1010
+< 86B5:0AEA  3D 0002				cmp	ax,2
+---
+> 86B5:0AEA  83 F8 02				cmp	ax,2
+1035c1035
+< 86B5:0B11  3D 0002				cmp	ax,2
+---
+> 86B5:0B11  83 F8 02				cmp	ax,2
+1047c1047
+< 86B5:0B23  3D 0003				cmp	ax,3
+---
+> 86B5:0B23  83 F8 03				cmp	ax,3
+1253c1253,1254
+< 86B5:0C51  8B E5				mov	sp,bp
+---
+> 86B5:0C51  90					nop
+> 86B5:0C52  90					nop
+1316c1317,1318
+< 86B5:0CAD  8B E5				mov	sp,bp
+---
+> 86B5:0CAD  90					nop
+> 86B5:0CAE  90					nop

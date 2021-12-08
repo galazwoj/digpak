@@ -271,10 +271,10 @@ NibbleOut	macro
 	jle	@@OK
 	sub	ax,'9'+1
 	add	ax,'A'
-@@OK:	mov	[es:di],al
+@@OK:	mov	es:[di],al
 	sub	di,2
 	pop	ax
-	shr	ax,4		; down one nibble
+	ShiftR	ax,4 		;	shr	ax,4		; down one nibble
 	endm
 
 HEXPRINT	macro reg,xloc,yloc
