@@ -20,8 +20,6 @@ IFNDEF  ISCOM
 	ENDIF
 ENDIF
 
-KINT	equ	66h
-
 	.CODE
 	.386
 

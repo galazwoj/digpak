@@ -9,8 +9,6 @@ FOREGROUND	=	0
 DIG_CVXSND	=	1
 BACKFLLL	=	0
 
-KINT	equ	66h
-
 		.code
 		org 100h
 		assume es:nothing, ss:nothing

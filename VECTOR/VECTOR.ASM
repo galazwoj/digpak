@@ -46,8 +46,6 @@ HEXPRINT2 Macro  reg,xloc,yloc
 	pop	es
 	endm
 
-KINT    equ     66h
-
 	.code
 	.386
 	org 100h

@@ -132,4 +132,3 @@ GET20BIT Macro
        endm
 
 KINT    equ     66h
-

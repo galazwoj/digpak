@@ -1,4 +1,4 @@
-		P386
+		
 ;;----------------------------------------------------------------------
 ;; Changes 05/20/93	Glen Chapman - Online Computer Systems
 ;;
@@ -17,29 +17,36 @@
 ;;	 crash and burn. 
 
 
-LOCALS                  ;; Enable local labels
+		.model tiny, C
+		
+	INCLUDE COMPAT.INC
+        INCLUDE PROLOGUE.MAC          ;; common prologue
+	INCLUDE SOUNDRV.INC
+        INCLUDE	msnd_dsp.equ
+        INCLUDE	msnd.inc
+
+IFNDEF  ISCOM
+	IFNDEF  ISEXE
+		ISCOM 	EQU 	1
+		ISEXE	EQU	0
+	ELSE
+		ISCOM 	EQU 	0
+	ENDIF
+ENDIF
+
 VERSION_NUMBER equ 340
 
-        IDEAL                   ;; Use Turbo Assembler's IDEAL mode
-	JUMPS
+	.code
+	.386
+	org 100h
+	assume es:nothing, ss:nothing
 
-        INCLUDE "PROLOGUE.MAC"          ;; common prologue
-        include "msnd_dsp.equ"
-        include "msnd.inc"
-
-
-SEGMENT  _TEXT PARA PUBLIC 'CODE'
-        ENDS
-
-        ASSUME  CS: _TEXT, DS: _TEXT, SS: NOTHING, ES: NOTHING
-
-SEGMENT _TEXT
 IF	ISCOM
 	org	100h
 ENDIF
 START:
 	jmp	LoadSound		; Load the digitized sound driver
-	db	"DIGPAK",0,13,10        ; Digitized Sound Package Identity String
+DIGPAK	db	"DIGPAK",0,13,10        ; Digitized Sound Package Identity String
 IDENTIFIER:
 ;; =============[*][	     1	       2	 3	    ]
 ;; =============[*][1234567890123456789012345678901234567890]
@@ -56,11 +63,10 @@ ENDIF
 	;;--------------------------------------------------------
 	;;  Gc - I moved the following up here 4 vars up here just
 	;; in case they had been needed after setup, probably unnecessary
-        _bMemMap        db ?	;; GC was set as HPMEM_D000
-        _bWaitState     db HPWAITSTATE_0
-        _bBitMode       db HPBITMODE_16
-        _bIntMap        db ?	;; GC was set as HPIRQ_10
-	
+_bMemMap        db ?	;; GC was set as HPMEM_D000
+_bWaitState     db HPWAITSTATE_0
+_bBitMode       db HPBITMODE_16
+_bIntMap        db ?	;; GC was set as HPIRQ_10
 
 ;; Unique data areas to individual hardware implementations.
 _wPort          DW      290h        ; Default I/O address.
@@ -77,40 +83,6 @@ _AudioOff       dw      ?
 _AudioFlag      dw      0
 
 INDIGPAK	dw	0
-
-;; Set's the DIGPAK semaphore
-Macro	SetSemaphore
-	mov	[cs:INDIGPAK],1
-	endm
-
-;; Clear's the semaphore, and does an IRET
-Macro	ClearSemaphoreIRET
-	mov	[cs:INDIGPAK],0
-	iret
-	endm
-
-Macro	ClearSemaphore
-	mov	[cs:INDIGPAK],0
-	endm
-
-;; This macro checks the DPMI compliant FLAG
-;;  If DPMI is on, then the address of the SoundStructure passed is
-;;  in ESI instead of DS:SI.  First make certain it is in the low 1mb
-;;  of address space.  If not, clearsemaphoreiret.  Otherwise set DS:SI
-;;  equal to that address.
-Macro	ConvertDPMI seg,indx
-	LOCAL	@@HOP
-	cmp	[cs:DPMI],0	; In 32 bit DPMI mode?
-	je	@@HOP
-	push	eax		; Save EAX
-	mov	eax,indx	; Get the entire 32 bit flat-model address.
-	shr	eax,4		; leave just the segment portion.
-	mov	seg,ax		 ; place the segment into DS
-	and	indx,0Fh	 ; leave just the offset portion.
-	pop	eax
-@@HOP:
-	endm
-
 
 JumpTable       dw      offset  FUNCT1
 		dw	offset	FUNCT2
@@ -140,8 +112,9 @@ JumpTable       dw      offset  FUNCT1
 
 JumpPtr 	dw	?
 _voice_status	dw	0
+
 CallBacks	dw	0	; Callback to application flag.
-LABEL		CALLBACK	DWORD	     ; Callback address label.
+CallBack	LABEL	DWORD   ; Callback address label.
 CallLow 	dw	0	; Low word of callback address.
 CallHigh	dw	0	; High word of callback address.
 CallDS		dw	0	; Value of DS register at callback time.
@@ -167,7 +140,7 @@ KJUMP	FARPTR	<>		; Address
 OLDIN	FARPTR	<>		; Original interupt vector.
 ID      db      'KERN'          ; 4B45524Eh Interupt identifier string.
 IND     db      'KR'            ; 4B52h indicates a kernel installed interupt.
-Proc	SoundInterupt far
+SoundInterupt	Proc	far
 ;;; Usage: DS:SI -> point to sound structure to play.
 ;; FUNCT1  AX = 0688h	 DigPlay
 ;; FUNCT2  AX = 0689h	 Sound Status
@@ -206,7 +179,7 @@ Proc	SoundInterupt far
         shl     ax,1
 	add	ax,offset JumpTable
 	xchg	ax,bx
-	mov	bx,[cs:bx]
+	mov	bx,cs:[bx]
 	xchg	ax,bx
 	mov	[cs:JumpPtr],ax
 	jmp	[cs:JumpPtr]	;; Near jump will be modified!!
@@ -218,8 +191,7 @@ Proc	SoundInterupt far
 	jmp	[cs:OLDIN.DPTR] 	; Chain to original interrupt vector.
 @@IRET:
 	ClearSemaphoreIRET
-	endp
-
+SoundInterupt	endp
 
 FUNCT1:
 ;;**************************************************************************
@@ -313,7 +285,7 @@ FUNCT5:
         or      ax, STEREOPAN
 
         mov     bx,cs
-	lea	cx,[IDENTIFIER]
+	xlea	cx,[IDENTIFIER]
 	ClearSemaphoreIRET
 FUNCT6:
 ;;**************************************************************************
@@ -489,7 +461,7 @@ FUNCTD:
 	ConvertDPMI ds,esi
 	push	cs
 	pop	es
-	lea	di,[LOOPSND]
+	xlea	di,[LOOPSND]
 	mov	cx,SIZE LOOPSND
 	rep	movsb
 	mov	ax,068Fh	; Stop any currently playing sound.
@@ -499,14 +471,14 @@ FUNCTD:
 	mov	ds,ax
 	mov	dx,ax		;
 	mov	ax,068Eh
-	lea	bx,[LoopBack]	;
+	xlea	bx,[LoopBack]	;
 	int	66h		; Set loop callback.
 	PopAll
 	push	cs
 	pop	ds
-	lea	si,[LOOPSND]
-	mov	[word cs:LOOPSOUND],si
-	mov	[word cs:LOOPSOUND+2],ds
+	xlea	si,[LOOPSND]
+	mov	[word ptr cs:LOOPSOUND],si
+	mov	[word ptr cs:LOOPSOUND+2],ds
 	mov	[cs:FROMLOOP],1 ; Set from looping semephore
 	mov	ax,068Bh	; Do FUNCT4
 	jmp	FUNCT4		; Do a DigPlay2
@@ -552,9 +524,9 @@ FUNCTF:
         cli             ; Clear interrupts while we make this determination.
         mov     ax,[cs:_voice_status]
         or      ax,ax           ; Currently playing a sound?
-        jnz     @@POST          ; yes->try to post pending.
+        jnz     @@POST3         ; yes->try to post pending.
 	ClearSemaphoreIRET
-@@POST: cmp     [cs:PENDING],1  ; Have a sound pending?
+@@POST3:cmp     [cs:PENDING],1  ; Have a sound pending?
         je      @@PEND          ; yes, return pending status.
         mov     ax,1            ; Sound is playing, but no sound is pending.
 	ClearSemaphoreIRET
@@ -651,8 +623,8 @@ FUNCT12:
 ;;
 ;;**************************************************************************
 	mov	dx,cs		; Code segment.
-	lea	ax,[PENDING]	; Address of pending flag.
-	lea	bx,[INDIGPAK]	; Address of semaphore address.
+	xlea	ax,[PENDING]	; Address of pending flag.
+	xlea	bx,[INDIGPAK]	; Address of semaphore address.
 	ClearSemaphoreIRET
 
 FUNCT13:
@@ -739,30 +711,28 @@ FUNCT19:
 	mov	[cs:DPMI],dx
 	ClearSemaphoreIRET
 
-
-Proc	PlayPending	far
+PlayPending Proc	far
 	cmp	[PENDING],1  ; Pending?
 	jne	@@not
 	mov	[PENDING],0
 	mov	[cs:CallBacks],0	; No longer have one pending..
-	lea	si,[PENDSND]	; Address of pending sound.
+	xlea	si,[PENDSND]	; Address of pending sound.
 	call	DoSoundPlay	; Do a sound play call.
 	ret
 @@not:
 	mov	[cs:CallBacks],0	; Disable callbacks.
 	ret
-	endp
+PlayPending endp
 
-Proc	DoSoundPlay	near
+DoSoundPlay Proc	near
 	PushCREGS
 	call	SetAudio
 	call	PlaySound
 	PopCREGS
 	ret
-	endp
+DoSoundPlay endp
 
-
-Proc	CheckCallBack	near
+CheckCallBack Proc	near
 	cmp	[cs:CallBacks],0	; Callbacks enabled?
 	je	@@GOUT		; no, exit.
 	PushAll 		; Save all registers
@@ -771,8 +741,7 @@ Proc	CheckCallBack	near
 	PopAll			; Restore all registers.
 @@GOUT:
 	ret
-	endp
-
+CheckCallBack endp
 
 FROMLOOP	dw	0
 SAVECALLBACK	dd	?	; Saved callback address.
@@ -785,20 +754,20 @@ LOOPSND 	SOUNDSPEC	<>
 PENDING 	dw	0	; True, when second sound sample is pending.
 PENDSND         SOUNDSPEC <>    ; Sound structure of pending sound.
 
-Proc	LoopBack	far
+LoopBack Proc	far
 	mov	ax,068Bh	; Play preformated data.
 	mov	[cs:FROMLOOP],1
 	lds	si,[LOOPSOUND]	;
 	int	66h		; Start playing the sound again.
 	ret
-	endp
+LoopBack endp
 
-Proc    SetAudio        near
-	mov	[ds:(SOUNDSPEC ptr si).ISPLAYING.XPTR.POFF],offset _voice_status
-	mov	[ds:(SOUNDSPEC ptr si).ISPLAYING.XPTR.PSEG],cs
-	les	bx,[ds:(SOUNDSPEC ptr si).PLAYADR.DPTR]
-	mov	cx,[ds:(SOUNDSPEC ptr si).PLAYLEN]
-	mov	dx,[ds:(SOUNDSPEC si).FREQUENCY]
+SetAudio Proc  	near
+	mov	ds:[si].SOUNDSPEC.ISPLAYING.XPTR.POFF,offset _voice_status
+	mov	ds:[si].SOUNDSPEC.ISPLAYING.XPTR.PSEG,cs
+	les	bx,ds:[si].SOUNDSPEC.PLAYADR.DPTR
+	mov	cx,ds:[si].SOUNDSPEC.PLAYLEN
+	mov	dx,ds:[si].SOUNDSPEC.FREQUENCY
 
         push    ds                      ; Set up our SMA seg
         mov     ax, [cs:_MsndSeg]
@@ -809,26 +778,26 @@ Proc    SetAudio        near
 
 	mov	bx, offset wDAPQbuff
         mov     ax, [cs:PlayModeBit]
-        mov     [ds:(DAQueueDataStruc ptr bx).wDAQD_SampleSize], ax
+        mov     ds:[bx].DAQueueDataStruc.wDAQD_SampleSize, ax
         mov     ax, [cs:PlayModeChn]
-        mov     [ds:(DAQueueDataStruc ptr bx).wDAQD_Channels], ax
-        mov     [ds:(DAQueueDataStruc ptr bx).wDAQD_SampleRate], dx
+        mov     ds:[bx].DAQueueDataStruc.wDAQD_Channels, ax
+        mov     ds:[bx].DAQueueDataStruc.wDAQD_SampleRate, dx
 ;        mov     [ds:(DAQueueDataStruc ptr bx).wDAQD_SampleRate], 11025
 
 	add	bx, DAQD_STRUC_SIZE*2
         mov     ax, [cs:PlayModeBit]
-        mov     [ds:(DAQueueDataStruc ptr bx).wDAQD_SampleSize], ax
+        mov     ds:[bx].DAQueueDataStruc.wDAQD_SampleSize, ax
         mov     ax, [cs:PlayModeChn]
-        mov     [ds:(DAQueueDataStruc ptr bx).wDAQD_Channels], ax
-        mov     [ds:(DAQueueDataStruc ptr bx).wDAQD_SampleRate], dx
+        mov     ds:[bx].DAQueueDataStruc.wDAQD_Channels, ax
+        mov     ds:[bx].DAQueueDataStruc.wDAQD_SampleRate, dx
 ;        mov     [ds:(DAQueueDataStruc ptr bx).wDAQD_SampleRate], 11025
 
 	add	bx, DAQD_STRUC_SIZE*2
         mov     ax, [cs:PlayModeBit]
-        mov     [ds:(DAQueueDataStruc ptr bx).wDAQD_SampleSize], ax
+        mov     ds:[bx].DAQueueDataStruc.wDAQD_SampleSize, ax
         mov     ax, [cs:PlayModeChn]
-        mov     [ds:(DAQueueDataStruc ptr bx).wDAQD_Channels], ax
-        mov     [ds:(DAQueueDataStruc ptr bx).wDAQD_SampleRate], dx
+        mov     ds:[bx].DAQueueDataStruc.wDAQD_Channels, ax
+        mov     ds:[bx].DAQueueDataStruc.wDAQD_SampleRate, dx
 ;        mov     [ds:(DAQueueDataStruc ptr bx).wDAQD_SampleRate], 11025
 
         pop     bx
@@ -838,9 +807,9 @@ Proc    SetAudio        near
 	pop	ds		; DS = Code group.
         assume  ds:_TEXT
 	ret
-	endp
+SetAudio endp
 
-Proc	EndLoop near
+EndLoop Proc	near
 	cmp	[cs:LOOPING],0	   ; Are we doing a loop?
 	je	@@YES		; no, skip it.
 	PushAll
@@ -853,9 +822,9 @@ Proc	EndLoop near
 
 @@YES:
 	ret
-	endp
+EndLoop	endp
 
-Proc	CompleteSound	near
+CompleteSound Proc	near
 	cmp	[cs:FROMLOOP],1    ; In loop callback?
 	je	@@YES
 	call	EndLoop 	; don't wait for loop to complete, end it!
@@ -863,13 +832,13 @@ Proc	CompleteSound	near
 @@WT:	cmp	[cs:_voice_status],0	 ; Wait until last sound completed.
 	jne	@@WT
 	ret
-	endp
+CompleteSound endp
 
 
 ; This proc can be used for debug messages.  When called, the value of
 ; AX is written into the DSP shared RAM area.
 ;IF      DEBUG
-;proc    DoutAX  near
+;DoutAX  proc    near
 ;        push    ax
 ;        push    bx
 ;        push    es
@@ -893,16 +862,15 @@ Proc	CompleteSound	near
 ;        pop     ax
 ;        assume  es:nothing
 ;        ret
-;        endp
+;DoutAX  endp
 ;ENDIF
 
 ORG_INT_ADDX    dd      ?       ; Original IRQ address.
 
-Proc	PlaySound	near
+PlaySound Proc	near
 ;; CX ->number of bytes in sound sample.
 ;; ES:BX -> far address of sound sample to be played.
 ;; DX ->rate to play at.
-
         push    ax
         push    dx
         mov     [cs:_AudioSeg], es
@@ -937,9 +905,9 @@ SizeOK:
         shl     ax, 1
         add     bx, ax
 
-        mov     [es:(DAQueueDataStruc ptr bx).wDAQD_Size], cx
+        mov     es:[bx].DAQueueDataStruc.wDAQD_Size, cx
         sub     [cs:_wNumBytes], cx
-        mov     ax, [es:(DAQueueDataStruc ptr bx).wDAQD_Start] ; dsp based buffer start addr
+        mov     ax, es:[bx].DAQueueDataStruc.wDAQD_Start ; dsp based buffer start addr
         sub     ax, DSP_BASE_ADDR               ; lose his base (rel bank 0)
         shl     ax, 1                           ; now buff start in our domain
 
@@ -974,18 +942,15 @@ done_load:
         pop     dx
         pop     ax
         ret
+PlaySound   endp
 
-        endp
-
-
-Proc    StopSound       near
+StopSound Proc    near
         mov     al, HDEX_PLAY_STOP
         call    dspEx
 	ret
-	endp
+StopSound endp
 
-
-Proc	DoCallBacks	near
+DoCallBacks Proc	near
 	cmp	[cs:CallBacks],0
 	je	@@GOUT
 	PushAll 		; Save all registers
@@ -993,8 +958,7 @@ Proc	DoCallBacks	near
 	call	[cs:CallBack]	; far call to application.
 	PopAll			; Restore all registers.
 @@GOUT: ret
-	endp
-
+DoCallBacks endp
 
 ; MultiSound DSP specific calls
 
@@ -1010,8 +974,7 @@ Proc	DoCallBacks	near
 ;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-proc    dspRead near                             ; word
-
+dspRead proc    near                             ; word
 	push	cx
 	push	dx
 
@@ -1049,9 +1012,7 @@ dsprd_fini:
 	pop	dx
 	pop	cx
 	ret
-
-        endp
-
+dspRead        endp
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;
@@ -1062,8 +1023,7 @@ dsprd_fini:
 ; comm : Carry set on exit if it times out.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-proc    dspWrite        near                             ; void (CF = error)
-
+dspWrite proc    near                             ; void (CF = error)
 	push	dx
 	push	cx
 
@@ -1101,8 +1061,7 @@ dspwr3:
 	pop	cx
 	pop	dx
 	ret
-
-        endp
+dspWrite  endp
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;
@@ -1114,8 +1073,7 @@ dspwr3:
 ;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-proc    dspEx   near                                     ; void (CF = error)
-
+dspEx 	proc    near                                     ; void (CF = error)
         push    ds
         push    dx
 	push	cx
@@ -1164,9 +1122,7 @@ dspex3:
         pop     ds
         assume  ds:nothing
 	ret
-
-        endp
-
+dspEx   endp
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;
@@ -1178,8 +1134,7 @@ dspex3:
 ;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-proc    dspExAux        near                             ; void (CF = error)
-
+dspExAux proc    near                             ; void (CF = error)
 	cli				;--- no ints till after dsp talk fini
 
 	call	dspWrite		; put aux req # in TXL
@@ -1191,12 +1146,9 @@ proc    dspExAux        near                             ; void (CF = error)
 dspexa_9:
 	sti				;--- ints safe again
         ret
+dspExAux  endp
 
-        endp
-
-
-proc    smaReadWord     near                            ; word
-
+smaReadWord proc     near                            ; word
 						; passed : BX = addr to read
 						; rtn'd  : AX = data read
 						; trashed: nothing
@@ -1204,13 +1156,12 @@ proc    smaReadWord     near                            ; word
         mov     ds, [_MsndSeg]
         assume  ds:SRAM_BANK_0
 
-        mov     ax, [ds:(word ptr bx)]          ; read word from shared mem
+        mov     ax, ds:[(word ptr bx)]          ; read word from shared mem
 
 	pop	ds
         assume  ds:_TEXT
 	ret
-        endp
-
+smaReadWord   endp
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;
@@ -1218,7 +1169,7 @@ proc    smaReadWord     near                            ; word
 ;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-proc    dspISR  far
+dspISR  proc    far
 	SetSemaphore
         assume  es:nothing, ds:nothing
 
@@ -1271,7 +1222,6 @@ isr_re_no_cas:
 	sti				;--- "iret" won't do it
 	ClearSemaphoreIRET
 
-
 isr_not_nested:
 
         mov     es, [_MsndSeg]            ; prep ES
@@ -1301,7 +1251,7 @@ isr_q_ready:
 	sub	bx, DSP_BASE_ADDR	; lose his base
 	shl	bx, 1			; now in our domain
 
-        mov     ax, [es:(word ptr bx)]  ; get the queue data
+        mov     ax, word ptr es:[bx]  ; get the queue data
 
         cmp     ah, HIMT_PLAY_DONE
         jne     isr_q_loop
@@ -1344,9 +1294,9 @@ isr_no_cas:
 
         assume  es:nothing, ds:nothing
 	ClearSemaphoreIRET
-        endp
+dspISR  endp
 
-proc    himPlayDone     near
+himPlayDone proc    near
         push    es
         push    bx
         push    dx
@@ -1403,9 +1353,9 @@ SizeOK3:
         shl     ax, 1
         add     bx, ax
 
-        mov     [es:(DAQueueDataStruc ptr bx).wDAQD_Size], cx
+        mov     es:[bx].DAQueueDataStruc.wDAQD_Size, cx
         sub     [cs:_wNumBytes], cx
-        mov     ax, [es:(DAQueueDataStruc ptr bx).wDAQD_Start] ; dsp based buffer start addr
+        mov     ax, es:[bx].DAQueueDataStruc.wDAQD_Start ; dsp based buffer start addr
         sub     ax, DSP_BASE_ADDR               ; lose his base (rel bank 0)
         shl     ax, 1                           ; now buff start in our domain
 
@@ -1436,11 +1386,9 @@ EndPlay:
         pop     bx
         pop     es
         ret
-        endp
+himPlayDone  endp
 
-
-
-proc    RestoreHardISR  far
+RestoreHardISR proc    far
 	sti				;--- make sure
         push    dx
         push    ax
@@ -1516,23 +1464,17 @@ disable9:
         pop     dx
 
         ret
-        endp
+RestoreHardISR endp
 
-
-
-LABEL	SUICIDE byte		;; Where to delete ourselves from memory
+SUICIDE LABEL 	byte		;; Where to delete ourselves from memory
 hard    db      "MultiSound not detected.",13,10,'$'
 msg0A   db      "MultiSound failed in reset",13,10,'$'
 msg0B   db      "MultiSound failed interrupt installation",13,10,'$'
 msg0C	db	"Invalid interrupt selection for MultiSound",13,10,'$'
 msg0D	db	"Invalid Memory Bank selection for MultiSound",13,10,'$'
-
-
-
 msg0	db	"MultiSound DIGPAK Driver v3.4"
 	db	" - Copyright (c) 1994, The Audio Solution 3.30",13,10
 	db	" Portions Copyright, Turtle Beach Systems",13,10,'$'
-
 msg1	db	"The Sound Driver is already resident.",13,10,'$'
 msg1a   db      "The Sound Driver is resident, through MIDPAK.",13,10,'$'
 msg1b   db      "A Sound Driver cannot be loaded on top of MIDPAK.  Unload MIDPAK first.",13,10,'$'
@@ -1550,7 +1492,6 @@ Installed	dw	0
 	;;  Second Byte is MS interrupt select code to send to DSP(?)
 	;;  Third Byte is IMR mask   
 	;;  fourth Byte is true interrupt number
-	public	IntLUTab
 
 IntLUTab     db	   0,0,00000001b,08h		;Interrupt 0
 	     db    0,0,00000010b,09h		;Interrupt 1
@@ -1572,16 +1513,16 @@ IntLUTab     db	   0,0,00000001b,08h		;Interrupt 0
 DSP_INIT_SIZE   equ     512
 wDspInitSize	dw	DSP_INIT_SIZE
 
-label   bDspInitStart   byte
-        include "msdspini.asm"
+bDspInitStart   label byte
+        include msdspini.asm
 
-label   bDspPermStart   byte
-label   wDspPermWords   word
-        include "msdsperm.asm"
+bDspPermStart   label byte
+wDspPermWords   label word
+        include msdsperm.asm
+
 wDspPermSize	dw	$-wDspPermWords
 
-
-Proc    LoadSound near
+LoadSound Proc    near
 	mov	ax,cs			;;
 	mov	ds,ax			;; establish data segment
         assume  ds:_TEXT
@@ -1654,9 +1595,9 @@ NoArg:	or	ax,ax			;; Already loaded?
 ;;; Announce the Kernel's presence.
 	Message msg0
         DosTSR  SUICIDE         ;; Terminate ourselves bud.
-	endp
+LoadSound endp
 
-Proc	InstallInterupt 	far
+InstallInterupt Proc	far
 	IN_TSR
 
 	call	HardwareInit	;; Initialize hardware.
@@ -1667,15 +1608,14 @@ Proc	InstallInterupt 	far
 	mov	[param+2],offset SoundInterupt ;; offset of interupt routine
 	mov	[param+4],cs		;; Our code segment.
 	PushEA	param			;; push the address of the parameter list
-	call	InstallInt		;; Install the interupt.
+	call	InstallINT		;; Install the interupt.
 	add	sp,2			;; clean up stack
 @@OUT:
-
 	OUT_TSR
 	ret
-	endp
+InstallInterupt endp
 
-Proc	DeInstallInterupt	far
+DeInstallInterupt Proc	far
 	IN_TSR
 	mov	[param],KINT		;; Interupt requested to be unloaded.
 	PushEA	param			;; pass parameter.
@@ -1683,24 +1623,23 @@ Proc	DeInstallInterupt	far
 	add	sp,2			;; clean up stack
 	OUT_TSR
 	ret
-	endp
+DeInstallInterupt endp
 
-
-Proc	CheckIn near
+CheckIn Proc	near
 	push	ds		; Save ds register.
 	push	si
 
 	mov	si,66h*4h	; get vector number
         xor     ax,ax           ; zero
         mov     ds,ax           ; point it there
-	lds	si,[ds:si]	; get address of interupt vector
+	lds	si,ds:[si]	; get address of interupt vector
         or      si,si           ; zero?
         jz      @@CIOUT         ; exit if zero
         sub     si,6            ; point back to identifier
 
-	cmp	[word si],'IM'  ; Midi driver?
+	cmp	word ptr [si],'IM'  ; Midi driver?
 	jne	@@NEX
-	cmp	[word si+2],'ID'  ; full midi driver identity string?
+	cmp	word ptr [si+2],'ID'  ; full midi driver identity string?
 	jne	@@NEX
 
 ;; Ok, a MIDI driver is loaded at this address.
@@ -1714,9 +1653,9 @@ Proc	CheckIn near
 	mov	ax,2		; Sound driver resident, through MIDPAK.
 	jmp short @@EXT
 @@NEX:
-	cmp	[word si],454Bh ; equal?
+	cmp	word ptr [si],454Bh ; equal?
         jne     @@CIOUT         ; exit if not equal
-	cmp	[word si+2],4E52h    ; equal?
+	cmp	word ptr [si+2],4E52h    ; equal?
         jne     @@CIOUT
 @@OK:	mov	ax,1
 @@EXT:
@@ -1725,28 +1664,24 @@ Proc	CheckIn near
 	ret
 @@CIOUT: xor	ax,ax		; Zero return code.
 	jmp short @@EXT
-	endp
+CheckIn endp
 
-
-
-Proc	InstallINT near
-	ARG	DATA:WORD
+InstallINT Proc	 near C MYDATA:WORD
 ;; Usage: IntallINT(&parms)
 ;; offset 0: interupt
 ;;        2: offset of interupt code
 ;;        4: segment of interupt code
-	PENTER	0
 	PushCREGS
 
-	mov	bx,[DATA]	; Get address of parameter table
+	mov	bx,[MYDATA]	; Get address of parameter table
         mov     ax,[bx]         ; get the interupt vector.
         mov     di,ax           ; save interupt vector into DI as well
         mov     si,[bx+2]       ; get offset
         mov     ds,[bx+4]       ; get segment.
         mov     ah,35h          ; Get interupt vector
         int     21h             ; Do DOS call to get vector.
-	mov	[ds:si-10],bx	; Save the old offset.
-	mov	[ds:si-8],es	; Save the old segment
+	mov	ds:[si-10],bx	; Save the old offset.
+	mov	ds:[si-8],es	; Save the old segment
         cld
         xor     ax,ax
         mov     es,ax
@@ -1760,16 +1695,15 @@ Proc	InstallINT near
         xor     ax,ax           ; Success
 
 	PopCREGS
-	PLEAVE
+	nope
+	nope
 	ret
-	endp
+InstallINT endp
 
-Proc	UnLoad near
-	ARG	DATA:WORD
+UnLoad  Proc	near C MYDATA:WORD
 ;; Usage: UnLoad(&vector)
 ;; Returns: AX = 0 success
 ;           AX nonzero, couldn't unload interupt vector.
-	PENTER	0
 	PushCREGS
 
 	mov	ax,68Fh ; Stop sound playback!
@@ -1778,21 +1712,21 @@ Proc	UnLoad near
 	mov	ax,692h ; Deinstall hardware vectors.
 	int	KINT
 
-	mov	bx,[DATA]	; get address of interupt vector
+	mov	bx,[MYDATA]	; get address of interupt vector
         mov     bx,[bx]         ; get the interupt vector.
         mov     dx,bx           ; put it into DX as well
 	ShiftL	bx,2		;
         xor     ax,ax
         mov     ds,ax           ; Segment zero
-	lds	si,[ds:bx]	; get address of interupt vector
+	lds	si,ds:[bx]	; get address of interupt vector
         or      si,si           ; zero?
         jz      @@UOUT          ; exit if zero
-	cmp	[WORD ds:si-2],524Bh ;'KR' Is this a kernel installed interupt?
+	cmp	word ptr ds:[si-2],524Bh ;'KR' Is this a kernel installed interupt?
         push    ds              ; save DS
         mov     ax,dx           ; Get interupt vector.
         mov     ah,25h          ; Do DOS 25h set interupt vector.
-	mov	dx,[ds:si-10]	 ; get old offset
-	mov	ds,[ds:si-8]	; get old segment
+	mov	dx,ds:[si-10]	 ; get old offset
+	mov	ds,ds:[si-8]	; get old segment
         int     21h             ; set interupt vector.
         pop     ax              ; get back segment of program.
 ;IF      ISEXE
@@ -1807,12 +1741,13 @@ Proc	UnLoad near
         mov     ah,49h          ; free memory.
         int     21h             ; free up the memory used by us.
 
-@@EXIT: PopCREGS
-	PLEAVE
+@@EXIT2:PopCREGS
+	nope
+	nope
         ret
 @@UOUT: mov     ax,1
-        jmp short @@EXIT
-	endp
+        jmp short @@EXIT2
+UnLoad 	endp
 
 ;; This procedure parses the command line and builds an array of
 ;; pointers to each argument.  Arguments are seperated by space's.
@@ -1820,45 +1755,45 @@ Proc	UnLoad near
 _argc	 dw	 0	 ; The argument count
 _argv	dw	16 dup(0) ; Up to 16 arguments.
 command db	128 dup(?)
-Proc	ParseCommandLine	near
+
+ParseCommandLine Proc	near
 	mov	[_argc],0
-	cmp	[byte es:80h],2
+	cmp	[byte ptr es:80h],2
 	jb	@@END
 	xor	cx,cx
 	mov	cl,[es:80h]	; Get length.
 	SwapSegs
 	dec	cx		; Less one
-	lea	di,[command]
+	xlea	di,[command]
 	mov	si,82h
 	rep	movsb
 	push	cs
 	pop	ds
-	lea	di,[_argv]	; Argument list.
-	lea	si,[command]	; Start address.
+	xlea	di,[_argv]	; Argument list.
+	xlea	si,[command]	; Start address.
 @@SET:	inc	[_argc] 	; Increment argument counter.
 	mov	ax,si		; Base argument addres.
 	stosw
 @@NEX:	lodsb			; Get characters until we hit space of eol
 	cmp	al,32
 	jne	@@NEX2
-	mov	[byte ds:si-1],0 ; Turn space into a zero byte.
+	mov	byte ptr ds:[si-1],0 ; Turn space into a zero byte.
 	jmp short @@SET
 @@NEX2:
 	cmp	al,13
 	je	@@END1
 	or	al,al
 	jnz	@@NEX		; Keep skipping to next arg.
-@@END1: mov	[byte ds:si-1],0	; Zero byte terminate last arg
+@@END1: mov	byte ptr ds:[si-1],0	; Zero byte terminate last arg
 @@END:
 	ret
-	endp
+ParseCommandLine endp
 
 ;;************************************************************************
 ;; Unique harware init code.
 ;;************************************************************************
-	public HardwareInit
 
-Proc    HardwareInit    far
+HardwareInit Proc    far
 	;; GC -------------- start code to intitialize Interrupt variables
 	mov	bx, [_intr_num]		; get proposed HW interrupt
 	shl	bx, 1			; word align
@@ -1949,7 +1884,6 @@ GotTheReg:
 	shr	al, cl			; 8 => 1, 16 => 0 (for D0)
 	out	dx, al			; bus mode is now as requested
 
-
         cld                                     ; make sure
         mov     dx, [_wPort]                    ; Zero all the SMA
 	add	dl, HP_BLKS
@@ -1980,7 +1914,6 @@ GotTheReg:
 ;*z*	mov	wDAPQ_Head, 0
 ;*z*	mov	wDAPQ_Tail, 0
 
-
 ; init digital audio record job queue
 
 	mov	ax, (offset wDARQbuff) + (DSP_BASE_ADDR SHL 1)
@@ -1989,7 +1922,6 @@ GotTheReg:
         mov     [wDARQ_Size], DARQ_BUFF_SIZE-1
 ;*z*	mov	wDARQ_Head, 0
 ;*z*	mov	wDARQ_Tail, 0
-
 
 ; init midi output data queue
 
@@ -2000,7 +1932,6 @@ GotTheReg:
 ;*z*	mov	wMODQ_Head, 0
 ;*z*	mov	wMODQ_Tail, 0
 
-
 ; init midi input data queue
 
 	mov	ax, (offset wMIDQbuff) + (DSP_BASE_ADDR SHL 1)
@@ -2009,7 +1940,6 @@ GotTheReg:
         mov     [wMIDQ_Size], MIDQ_BUFF_SIZE-1
 ;*z*	mov	wMIDQ_Head, 0
 ;*z*	mov	wMIDQ_Tail, 0
-
 
 ; init dsp->host message queue
 
@@ -2020,47 +1950,46 @@ GotTheReg:
 ;*z*	mov	wDSPQ_Head, 0
 ;*z*	mov	wDSPQ_Tail, 0
 
-
 ; init DA play job queue data
 
 	mov	bx, offset wDAPQbuff
         mov     ax, offset bDAPbuff1Start
         shr     ax, 1
         add     ax, DSP_BASE_ADDR
-        mov     [es:(DAQueueDataStruc ptr bx).wDAQD_Start], ax
-        mov     [es:(DAQueueDataStruc ptr bx).wDAQD_Size], DAP_BUFF_1_SIZE                ; buffer start & size
-        mov     [es:(DAQueueDataStruc ptr bx).wDAQD_Format], 1                            ; PCM data format
-        mov     [es:(DAQueueDataStruc ptr bx).wDAQD_SampleSize], 8                        ; 8 bit
-        mov     [es:(DAQueueDataStruc ptr bx).wDAQD_Channels], 1                          ; mono
-        mov     [es:(DAQueueDataStruc ptr bx).wDAQD_SampleRate], 11025                    ; 44.1kHz
-        mov     [es:(DAQueueDataStruc ptr bx).wDAQD_IntMsg], (HIMT_PLAY_DONE*100h) + 0    ; int time msg
-        mov     [es:(DAQueueDataStruc ptr bx).wDAQD_Flags], 1                             ; flag buffer #1
+        mov     es:[bx].DAQueueDataStruc.wDAQD_Start, ax
+        mov     es:[bx].DAQueueDataStruc.wDAQD_Size, DAP_BUFF_1_SIZE                ; buffer start & size
+        mov     es:[bx].DAQueueDataStruc.wDAQD_Format, 1                            ; PCM data format
+        mov     es:[bx].DAQueueDataStruc.wDAQD_SampleSize, 8                        ; 8 bit
+        mov     es:[bx].DAQueueDataStruc.wDAQD_Channels, 1                          ; mono
+        mov     es:[bx].DAQueueDataStruc.wDAQD_SampleRate, 11025                    ; 44.1kHz
+        mov     es:[bx].DAQueueDataStruc.wDAQD_IntMsg, (HIMT_PLAY_DONE*100h) + 0    ; int time msg
+        mov     es:[bx].DAQueueDataStruc.wDAQD_Flags, 1                             ; flag buffer #1
 
 	add	bx, DAQD_STRUC_SIZE*2
         mov     ax, offset bDAPbuff2Start
         shr     ax, 1
         add     ax, DSP_BASE_ADDR
-        mov     [es:(DAQueueDataStruc ptr bx).wDAQD_Start], ax
-        mov     [es:(DAQueueDataStruc ptr bx).wDAQD_Size], DAP_BUFF_2_SIZE                ; buffer start & size
-        mov     [es:(DAQueueDataStruc ptr bx).wDAQD_Format], 1                            ; PCM data format
-        mov     [es:(DAQueueDataStruc ptr bx).wDAQD_SampleSize], 8                        ; 8 bit
-        mov     [es:(DAQueueDataStruc ptr bx).wDAQD_Channels], 1                          ; mono
-        mov     [es:(DAQueueDataStruc ptr bx).wDAQD_SampleRate], 11025                    ; 44.1kHz
-        mov     [es:(DAQueueDataStruc ptr bx).wDAQD_IntMsg], (HIMT_PLAY_DONE*100h) + 1    ; int msg
-        mov     [es:(DAQueueDataStruc ptr bx).wDAQD_Flags], 2                             ; flag buffer #2
+        mov     es:[bx].DAQueueDataStruc.wDAQD_Start, ax
+        mov     es:[bx].DAQueueDataStruc.wDAQD_Size, DAP_BUFF_2_SIZE                ; buffer start & size
+        mov     es:[bx].DAQueueDataStruc.wDAQD_Format, 1                            ; PCM data format
+        mov     es:[bx].DAQueueDataStruc.wDAQD_SampleSize, 8                        ; 8 bit
+        mov     es:[bx].DAQueueDataStruc.wDAQD_Channels, 1                          ; mono
+        mov     es:[bx].DAQueueDataStruc.wDAQD_SampleRate, 11025                    ; 44.1kHz
+        mov     es:[bx].DAQueueDataStruc.wDAQD_IntMsg, (HIMT_PLAY_DONE*100h) + 1    ; int msg
+        mov     es:[bx].DAQueueDataStruc.wDAQD_Flags, 2                             ; flag buffer #2
 
 	add	bx, DAQD_STRUC_SIZE*2
         mov     ax, offset bDAPbuff3Start
         shr     ax, 1
         add     ax, DSP_BASE_ADDR
-        mov     [es:(DAQueueDataStruc ptr bx).wDAQD_Start], ax
-        mov     [es:(DAQueueDataStruc ptr bx).wDAQD_Size], DAP_BUFF_3_SIZE                ; buffer start & size
-        mov     [es:(DAQueueDataStruc ptr bx).wDAQD_Format], 1                            ; PCM data format
-        mov     [es:(DAQueueDataStruc ptr bx).wDAQD_SampleSize], 8                        ; 8 bit
-        mov     [es:(DAQueueDataStruc ptr bx).wDAQD_Channels], 1                          ; mono
-        mov     [es:(DAQueueDataStruc ptr bx).wDAQD_SampleRate], 11025                    ; 44.1kHz
-        mov     [es:(DAQueueDataStruc ptr bx).wDAQD_IntMsg], (HIMT_PLAY_DONE*100h) + 2    ; int msg
-        mov     [es:(DAQueueDataStruc ptr bx).wDAQD_Flags], 3                             ; flag buffer #3
+        mov     es:[bx].DAQueueDataStruc.wDAQD_Start, ax
+        mov     es:[bx].DAQueueDataStruc.wDAQD_Size, DAP_BUFF_3_SIZE                ; buffer start & size
+        mov     es:[bx].DAQueueDataStruc.wDAQD_Format, 1                            ; PCM data format
+        mov     es:[bx].DAQueueDataStruc.wDAQD_SampleSize, 8                        ; 8 bit
+        mov     es:[bx].DAQueueDataStruc.wDAQD_Channels, 1                          ; mono
+        mov     es:[bx].DAQueueDataStruc.wDAQD_SampleRate, 11025                    ; 44.1kHz
+        mov     es:[bx].DAQueueDataStruc.wDAQD_IntMsg, (HIMT_PLAY_DONE*100h) + 2    ; int msg
+        mov     es:[bx].DAQueueDataStruc.wDAQD_Flags, 3                             ; flag buffer #3
 
 ; init DA record job queue data
 
@@ -2068,41 +1997,40 @@ GotTheReg:
         mov     ax, offset bDARbuff1Start
         shr     ax, 1
         add     ax, (DSP_BASE_ADDR+DSP_BANK_BASE)
-        mov     [es:(DAQueueDataStruc ptr bx).wDAQD_Start], ax
-        mov     [es:(DAQueueDataStruc ptr bx).wDAQD_Size], DAR_BUFF_1_SIZE                ; buffer start & size
-        mov     [es:(DAQueueDataStruc ptr bx).wDAQD_Format], 1                            ; PCM data format
-        mov     [es:(DAQueueDataStruc ptr bx).wDAQD_SampleSize], 16                       ; 16 bit
-        mov     [es:(DAQueueDataStruc ptr bx).wDAQD_Channels], 2                          ; stereo
-        mov     [es:(DAQueueDataStruc ptr bx).wDAQD_SampleRate], 44100                    ; 44.1kHz
-        mov     [es:(DAQueueDataStruc ptr bx).wDAQD_IntMsg], (HIMT_RECORD_DONE*100h) + 0  ; int time msg
-        mov     [es:(DAQueueDataStruc ptr bx).wDAQD_Flags], 1                             ; flag buffer #1
+        mov     es:[bx].DAQueueDataStruc.wDAQD_Start, ax
+        mov     es:[bx].DAQueueDataStruc.wDAQD_Size, DAR_BUFF_1_SIZE                ; buffer start & size
+        mov     es:[bx].DAQueueDataStruc.wDAQD_Format, 1                            ; PCM data format
+        mov     es:[bx].DAQueueDataStruc.wDAQD_SampleSize, 16                       ; 16 bit
+        mov     es:[bx].DAQueueDataStruc.wDAQD_Channels, 2                          ; stereo
+        mov     es:[bx].DAQueueDataStruc.wDAQD_SampleRate, 44100                    ; 44.1kHz
+        mov     es:[bx].DAQueueDataStruc.wDAQD_IntMsg, (HIMT_RECORD_DONE*100h) + 0  ; int time msg
+        mov     es:[bx].DAQueueDataStruc.wDAQD_Flags, 1                             ; flag buffer #1
 
 	add	bx, DAQD_STRUC_SIZE*2
         mov     ax, offset bDARbuff2Start
         shr     ax, 1
         add     ax, (DSP_BASE_ADDR+DSP_BANK_BASE)
-        mov     [es:(DAQueueDataStruc ptr bx).wDAQD_Start], ax
-        mov     [es:(DAQueueDataStruc ptr bx).wDAQD_Size], DAR_BUFF_2_SIZE                ; buffer start & size
-        mov     [es:(DAQueueDataStruc ptr bx).wDAQD_Format], 1                            ; PCM data format
-        mov     [es:(DAQueueDataStruc ptr bx).wDAQD_SampleSize], 16                       ; 16 bit
-        mov     [es:(DAQueueDataStruc ptr bx).wDAQD_Channels], 2                          ; stereo
-        mov     [es:(DAQueueDataStruc ptr bx).wDAQD_SampleRate], 44100                    ; 44.1kHz
-        mov     [es:(DAQueueDataStruc ptr bx).wDAQD_IntMsg], (HIMT_RECORD_DONE*100h) + 1  ; int msg
-        mov     [es:(DAQueueDataStruc ptr bx).wDAQD_Flags], 2                             ; flag buffer #2
+        mov     es:[bx].DAQueueDataStruc.wDAQD_Start, ax
+        mov     es:[bx].DAQueueDataStruc.wDAQD_Size, DAR_BUFF_2_SIZE                ; buffer start & size
+        mov     es:[bx].DAQueueDataStruc.wDAQD_Format, 1                            ; PCM data format
+        mov     es:[bx].DAQueueDataStruc.wDAQD_SampleSize, 16                       ; 16 bit
+        mov     es:[bx].DAQueueDataStruc.wDAQD_Channels, 2                          ; stereo
+        mov     es:[bx].DAQueueDataStruc.wDAQD_SampleRate, 44100                    ; 44.1kHz
+        mov     es:[bx].DAQueueDataStruc.wDAQD_IntMsg, (HIMT_RECORD_DONE*100h) + 1  ; int msg
+        mov     es:[bx].DAQueueDataStruc.wDAQD_Flags, 2                             ; flag buffer #2
 
 	add	bx, DAQD_STRUC_SIZE*2
         mov     ax, offset bDARbuff3Start
         shr     ax, 1
         add     ax, (DSP_BASE_ADDR+DSP_BANK_BASE)
-        mov     [es:(DAQueueDataStruc ptr bx).wDAQD_Start], ax
-        mov     [es:(DAQueueDataStruc ptr bx).wDAQD_Size], DAR_BUFF_3_SIZE                ; buffer start & size
-        mov     [es:(DAQueueDataStruc ptr bx).wDAQD_Format], 1                            ; PCM data format
-        mov     [es:(DAQueueDataStruc ptr bx).wDAQD_SampleSize], 16                       ; 16 bit
-        mov     [es:(DAQueueDataStruc ptr bx).wDAQD_Channels], 2                          ; stereo
-        mov     [es:(DAQueueDataStruc ptr bx).wDAQD_SampleRate], 44100                    ; 44.1kHz
-        mov     [es:(DAQueueDataStruc ptr bx).wDAQD_IntMsg], (HIMT_RECORD_DONE*100h) + 2  ; int msg
-        mov     [es:(DAQueueDataStruc ptr bx).wDAQD_Flags], 3                             ; flag buffer #3
-
+        mov     es:[bx].DAQueueDataStruc.wDAQD_Start, ax
+        mov     es:[bx].DAQueueDataStruc.wDAQD_Size, DAR_BUFF_3_SIZE                ; buffer start & size
+        mov     es:[bx].DAQueueDataStruc.wDAQD_Format, 1                            ; PCM data format
+        mov     es:[bx].DAQueueDataStruc.wDAQD_SampleSize, 16                       ; 16 bit
+        mov     es:[bx].DAQueueDataStruc.wDAQD_Channels, 2                          ; stereo
+        mov     es:[bx].DAQueueDataStruc.wDAQD_SampleRate, 44100                    ; 44.1kHz
+        mov     es:[bx].DAQueueDataStruc.wDAQD_IntMsg, (HIMT_RECORD_DONE*100h) + 2  ; int msg
+        mov     es:[bx].DAQueueDataStruc.wDAQD_Flags, 3                             ; flag buffer #3
 
 ; init common data
 
@@ -2112,8 +2040,8 @@ GotTheReg:
         mov     [es:wCurrPlayVolRight], 1FFFh        ; current play output volume - right
 ;*z*	mov	wCurrInVolLeft,    0000h	; current in mixer volume - left
 ;*z*	mov	wCurrInVolRight,   0000h	; current in mixer volume - right
-    mov     [wCurrMIDIVolLeft],  1FFFh        ; current MIDI output volume - left
-    mov     [wCurrMIDIVolRight], 1FFFh        ; current MIDI output volume - right
+    	mov     [wCurrMIDIVolLeft],  1FFFh        ; current MIDI output volume - left
+    	mov     [wCurrMIDIVolRight], 1FFFh        ; current MIDI output volume - right
 ;*z*	mov	word ptr dwCurrPlayPitch+0, 0000h ; current play pitch: MSW = int, LSW = frac
         mov     [word ptr dwCurrPlayPitch+2], 0001h ; current play pitch: MSW = int, LSW = frac
 ;*z*	mov	word ptr dwCurrPlayRate+0,  0000h ; current play rate: MSW = int, LSW = frac
@@ -2188,8 +2116,7 @@ InitDone:
         xor     ax, ax
         pop     bx
         ret
-
-        endp
+HardwareInit  endp
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;
@@ -2200,10 +2127,7 @@ InitDone:
 ;       occurs, carry is set and an error code is returned in AX.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-	public	dspReset
-
-proc    dspReset        far                      ; assumed: bank 0 is selected
-
+dspReset proc    far                      ; assumed: bank 0 is selected
 	cld				; make sure
 
 ;	reset DSP
@@ -2226,7 +2150,7 @@ proc    dspReset        far                      ; assumed: bank 0 is selected
 	mov	ds, ax
         assume  ds:_TEXT                ; dsp code is in "init" code seg
 
-        lea     si, [bDspPermStart]       ; ds:si points to front of src buffer
+        xlea     si, [bDspPermStart]       ; ds:si points to front of src buffer
 	xor	di, di			; dest sma (4000h rel. to dsp addr scheme)
         mov     cx, [wDspPermSize]        ; put the # bytes to move in counter
 	jcxz	dsprst_1		; none to move
@@ -2273,7 +2197,7 @@ dsprst_tc_loop:
 	inc	dx			; next i/o
 	loop	dsprst_tc_loop		; loop till done
 
-        mov     [bExtHostBits], ah        ; update common memory
+        mov     [bExtHostbits], ah        ; update common memory
 
 	sub	dx, 8			; point back at R/C bit
 
@@ -2387,7 +2311,7 @@ dsprst_wait_loop:
 	mov	ds, ax
         assume  ds:_TEXT                ; dsp code is in "init" code seg
 
-        lea     si, [bDspInitStart]       ; ds:si points to front of buffer
+        xlea     si, [bDspInitStart]       ; ds:si points to front of buffer
         mov     cx, [wDspInitSize]        ; put the max words in loop counter
 
 dsprst_mov_data:
@@ -2462,14 +2386,11 @@ dsprst_err:
 
 dsprst_hosed_err:
 	jmp	dsprst_err
-
-        endp
-
+dspReset endp
 
 ; Snap timer proc used for DSP init timing issues
 
-proc    SnapTimer       near            ; rtn'd  : AX = timer ticks
-
+SnapTimer proc   near            ; rtn'd  : AX = timer ticks
 	xor	al, al
 	out	43h, al			; freeze timer
 	jmp	$+2
@@ -2478,13 +2399,9 @@ proc    SnapTimer       near            ; rtn'd  : AX = timer ticks
 	in	al, 40h			; read & thaw it
 	xchg	al, ah
         ret
+SnapTimer  endp
 
-        endp
-
-	public	InitHardInt
-
-proc    InitHardInt     far
-
+InitHardInt proc    far
 ;; GC ; hook the interrupt we want to use
 ;; GC replaced >        xor     ax, ax
 ;; GC replaced >        mov     ax, [_intr_num]       ; get the true x86 int level we use
@@ -2573,11 +2490,10 @@ enable3:
 enab9:
 	xor	ax, ax			; no error
 enab99:
-
         ret
-        endp
+InitHardInt  endp
 
-        ENDS
+	db 6 dup(0)
 
 	end	START
 
