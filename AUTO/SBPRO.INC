@@ -520,4 +520,4 @@
 	db	074h,006h,090h,090h,00ah,0c0h,075h,0e9h,0c6h
 	db	044h,0ffh,000h,0c3h,033h,0c0h,0e8h,0c9h,0f4h
 	db	073h,007h,090h,090h,0b8h,001h,000h,0ebh,002h
-	db	033h,0c0h,0c3h,000h,000h,000h,
+	db	033h,0c0h,0c3h,000h,000h,000h

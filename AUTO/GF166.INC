@@ -621,4 +621,4 @@
 	db	005h,0b8h,000h,000h,0ebh,009h,0b8h,002h,000h
 	db	0ebh,010h,01fh,0b8h,001h,000h,03dh,000h,000h
 	db	074h,005h,0b8h,001h,000h,0ebh,002h,033h,0c0h
-	db	0c3h,
+	db	0c3h

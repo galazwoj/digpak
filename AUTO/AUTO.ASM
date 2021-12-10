@@ -1,22 +1,20 @@
-        LOCALS                  ;; Enable local labels
-        IDEAL                   ;; Use Turbo Assembler's IDEAL mode
-	JUMPS
-        INCLUDE "PROLOGUE.MAC"          ;; common prologue
-	INCLUDE "SOUNDRV.INC"
 
+	.model tiny, C
+		
+	INCLUDE COMPAT.INC
+        INCLUDE PROLOGUE.MAC          ;; common prologue
+	INCLUDE SOUNDRV.INC
+
+IFNDEF ALLDRIVERS
 ALLDRIVERS	equ	0	; true if building all sound drivers.
+ENDIF
 
-KINT		equ	66h
 MAXDRIVER	equ	6500	; maximum number of bytes in a driver.
 
-SEGMENT  _TEXT PARA PUBLIC 'CODE'
-	 ENDS
+	.code
+	org 100h
+	assume es:nothing, ss:nothing
 
-	ASSUME	CS: _TEXT, DS: _TEXT, SS: NOTHING, ES: NOTHING
-
-
-SEGMENT _TEXT
-	org	100h
 START:
 	jmp	LoadSound		; Load the digitized sound driver
 	db	"AUTO  ",0,13,10        ; Digitized Sound Package Identity String
@@ -24,43 +22,40 @@ IDENTIFIER:
 	db	"AUTO LOADER       ",0,13,10
 	db	"The Audio Solution, Copyright (c) 1994",0,13,10
 	db	"Written by John W. Ratcliff",0,13,10
+
 	org	200h		; Beginning address of jumps.
 	jmp	InstallInterupt 	; Install the interupt vector.
 	jmp	DeInstallInterupt	; De-install the interupt.
 
-	ALIGN	16
-LABEL	DRIVER	BYTE
+	db	10 dup (0)
+DRIVER	LABEL	BYTE
 	db	MAXDRIVER dup(?)     ; room for maximum sized sound driver.
 
-
-LABEL	InstallDriver	DWORD
+InstallDriver	LABEL	DWORD
 InstOff dw	0200h	; Offset of first jump.
 InstSeg dw	?	; Segment of audio driver.
-LABEL	DeInstallDriver DWORD
+DeInstallDriver LABEL	DWORD
 DeInstOff dw	0203h	; Offset of deinstall jump
 DeInstSeg dw	?	; Segment of audio driver.
 
-PROC	InitDP	near
-	ARG	LOADADR:WORD
-	PENTER	0
+InitDP	PROC	near C LOADADR:WORD
 	PushCREGS
-
 	mov	ax,[LOADADR] ; Save segment loaded at.
 	mov	es,ax		; Into ES
 	sub	ax,10h		; Less 10 paragraphs for the org 100h
 ;; Check Identity string 'DIGPAK' if not located starting 3 bytes into
 ;; the file loaded, then this is not a compatible digitized sound driver.
-	cmp	[byte es:3],'D' ; D in DIGPAK?
+	cmp	byte ptr es:[3],'D' ; D in DIGPAK?
 	jne	@@FREE
-	cmp	[byte es:4],'I' ; I in DIGPAK?
+	cmp	byte ptr es:[4],'I' ; I in DIGPAK?
 	jne	@@FREE
-	cmp	[byte es:5],'G' ; G in DIGPAK?
+	cmp	byte ptr es:[5],'G' ; G in DIGPAK?
 	jne	@@FREE
-	cmp	[byte es:6],'P' ; P in DIGPAK?
+	cmp	byte ptr es:[6],'P' ; P in DIGPAK?
 	jne	@@FREE
-	cmp	[byte es:7],'A' ; A in DIGPAK?
+	cmp	byte ptr es:[7],'A' ; A in DIGPAK?
 	jne	@@FREE
-	cmp	[byte es:8],'K' ; K in DIGPAK?
+	cmp	byte ptr es:[8],'K' ; K in DIGPAK?
 	jne	@@FREE
 	mov	[cs:InstSeg],ax
 	call	[cs:InstallDriver]	; Install the driver.
@@ -72,34 +67,34 @@ PROC	InitDP	near
 @@OK1:	mov	ax,1		; Success!
 @@EXT:
 	PopCREGS
-	PLEAVE
+	nope
+	nope
 	ret
-	endp
+InitDP	endp
 
-PROC	DeInitDP	near
-	ARG	ADDRESS:WORD
-	PENTER	0
-
+DeInitDP PROC	near C ADDRESS:WORD
 	mov	ax,[ADDRESS]
 	sub	ax,10h
 	mov	[cs:DeInstSeg],ax	; Set segment.
 	call	[cs:DeInstallDriver]	   ; Do indirect call to deinstall the driver.
-
-	PLEAVE
+	nope
+	nope
 	ret
-	endp
+DeInitDP endp
 
 ;; Data used by Kernel interupt
 KJUMP	FARPTR	<>		; Address
 OLDIN	FARPTR	<>		; Original interupt vector.
 ID	db	'AUTO'          ; Interupt identifier string.
 IND     db      'KR'            ; 4B52h indicates a kernel installed interupt.
-Proc	SoundInterupt far
+
+SoundInterupt Proc	far
 	xor	ax,ax
 	iret
-	endp
+SoundInterupt endp
 
-LABEL	SUICIDE byte		;; Where to delete ourselves from memory
+SUICIDE LABEL	byte		;; Where to delete ourselves from memory
+
 hard	db	'$'
 msg0	db	"Auto-Detect DIGPAK"
 	db	" - Copyright (c) 1993, THE Audio Solution:v3.40",13,10,'$'
@@ -113,7 +108,8 @@ msg5	db	"DIGPAK Sound Driver unloaded",13,10,'$'
 msg5a	db	"Sound Driver can't be unloaded, unload MIDPAK first.",13,10,'$'
 param   dw      4 dup(?)        ;; Used for parameter passing.
 Installed	dw	0
-Proc	LoadSound near
+
+LoadSound Proc	near
 	mov	ax,cs			;;
 	mov	ds,ax			;; establish data segment
 	mov	es,ax			;; point ES to PSP
@@ -132,7 +128,7 @@ Proc	LoadSound near
 	je	ULOAD
 @@BC:
 	Message msg3			;; Invalid command line
-				DOSTerminate
+	DOSTerminate
 
 ULOAD:	mov	ax,[Installed]
 	or	ax,ax
@@ -172,17 +168,17 @@ NoArg:	or	ax,ax			;; Already loaded?
 ;;; The Kernel is now installed.
 ;;; Announce the Kernel's presence.
 	Message msg0
-				DosTSR  SUICIDE         ;; Terminate ourselves bud.
-	endp
+	DosTSR  SUICIDE         ;; Terminate ourselves bud.
+LoadSound endp
 
-Proc	InstallInterupt 	far
+InstallInterupt Proc	far
 	IN_TSR
 
 	mov	[param],KINT		;; The interupt kernel is going into.
 	mov	[param+2],offset SoundInterupt ;; offset of interupt routine
 	mov	[param+4],cs		;; Our code segment.
 	PushEA	param			;; push the address of the parameter list
-	call	InstallInt		;; Install the interupt.
+	call	InstallINT		;; Install the interupt.
 	add	sp,2			;; clean up stack
 
 	call	HardwareInit	;; Initialize hardware.
@@ -190,9 +186,9 @@ Proc	InstallInterupt 	far
 
 	OUT_TSR
 	ret
-	endp
+InstallInterupt	endp
 
-Proc	DeInstallInterupt	far
+DeInstallInterupt Proc	far
 	IN_TSR
 
 	mov	ax,68Fh ; Stop sound playback!
@@ -217,24 +213,23 @@ Proc	DeInstallInterupt	far
 
 	OUT_TSR
 	ret
-	endp
+DeInstallInterupt endp
 
-
-Proc	CheckIn near
+CheckIn Proc	near
 	push	ds		; Save ds register.
 	push	si
 
 	mov	si,66h*4h	; get vector number
         xor     ax,ax           ; zero
         mov     ds,ax           ; point it there
-	lds	si,[ds:si]	; get address of interupt vector
+	lds	si,ds:[si]	; get address of interupt vector
         or      si,si           ; zero?
 	jz	@@CIOUT 	; exit if zero
         sub     si,6            ; point back to identifier
 
-	cmp	[word si],'IM'  ; Midi driver?
+	cmp	word ptr [si],'IM'  ; Midi driver?
 	jne	@@NEX
-	cmp	[word si+2],'ID'  ; full midi driver identity string?
+	cmp	word ptr [si+2],'ID'  ; full midi driver identity string?
 	jne	@@NEX
 
 ;; Ok, a MIDI driver is loaded at this address.
@@ -247,17 +242,17 @@ Proc	CheckIn near
 @@INMID:
 	mov	ax,2		; Sound driver resident, through MIDPAK.
 	jmp short @@EXT
-@@NEX:	cmp	[word si],'UA'
+@@NEX:	cmp	word ptr [si],'UA'
 	jne	@@NEX2
-	cmp	[word si+2],'OT'
+	cmp	word ptr [si+2],'OT'
 	jne	@@NEX2
 	mov	ax,1
 	jmp short @@EXT
 @@NEX2:
 
-	cmp	[word si],454Bh ; equal?
+	cmp	word ptr [si],454Bh ; equal?
 	jne	@@CIOUT 	; exit if not equal
-	cmp	[word si+2],4E52h    ; equal?
+	cmp	word ptr [si+2],4E52h    ; equal?
         jne     @@CIOUT
 @@OK:	mov	ax,1
 @@EXT:
@@ -266,28 +261,24 @@ Proc	CheckIn near
 	ret
 @@CIOUT: xor	ax,ax		; Zero return code.
 	jmp short @@EXT
-	endp
+CheckIn	endp
 
-
-
-Proc	InstallINT near
-	ARG	DATA:WORD
+InstallINT Proc	near C MYDATA:WORD
 ;; Usage: IntallINT(&parms)
 ;; offset 0: interupt
 ;;        2: offset of interupt code
 ;;        4: segment of interupt code
-	PENTER	0
 	PushCREGS
 
-	mov	bx,[DATA]	; Get address of parameter table
+	mov	bx,[MYDATA]	; Get address of parameter table
         mov     ax,[bx]         ; get the interupt vector.
         mov     di,ax           ; save interupt vector into DI as well
         mov     si,[bx+2]       ; get offset
         mov     ds,[bx+4]       ; get segment.
         mov     ah,35h          ; Get interupt vector
 				int     21h             ; Do DOS call to get vector.
-	mov	[ds:si-10],bx	; Save the old offset.
-	mov	[ds:si-8],es	; Save the old segment
+	mov	ds:[si-10],bx	; Save the old offset.
+	mov	ds:[si-8],es	; Save the old segment
         cld
         xor     ax,ax
         mov     es,ax
@@ -301,33 +292,32 @@ Proc	InstallINT near
 	xor	ax,ax		; Success
 
 	PopCREGS
-	PLEAVE
+	nope
+	nope
 	ret
-	endp
+InstallINT endp
 
-Proc	UnLoad near
-	ARG	DATA:WORD
+UnLoad 	Proc near C MYDATA:WORD
 ;; Usage: UnLoad(&vector)
 ;; Returns: AX = 0 success
 ;           AX nonzero, couldn't unload interupt vector.
-	PENTER	0
 	PushCREGS
 
-	mov	bx,[DATA]	; get address of interupt vector
+	mov	bx,[MYDATA]	; get address of interupt vector
 				mov     bx,[bx]         ; get the interupt vector.
         mov     dx,bx           ; put it into DX as well
 	ShiftL	bx,2		;
         xor     ax,ax
         mov     ds,ax           ; Segment zero
-	lds	si,[ds:bx]	; get address of interupt vector
+	lds	si,ds:[bx]	; get address of interupt vector
 				or      si,si           ; zero?
 				jz      @@UOUT          ; exit if zero
-	cmp	[WORD ds:si-2],524Bh ;'KR' Is this a kernel installed interupt?
+	cmp	word ptr ds:[si-2],524Bh ;'KR' Is this a kernel installed interupt?
         push    ds              ; save DS
         mov     ax,dx           ; Get interupt vector.
 				mov     ah,25h          ; Do DOS 25h set interupt vector.
-	mov	dx,[ds:si-10]	 ; get old offset
-	mov	ds,[ds:si-8]	; get old segment
+	mov	dx,ds:[si-10]	 ; get old offset
+	mov	ds,ds:[si-8]	; get old segment
 				int     21h             ; set interupt vector.
         pop     ax              ; get back segment of program.
         mov     es,ax
@@ -340,11 +330,12 @@ Proc	UnLoad near
         int     21h             ; free up the memory used by us.
 
 @@EXIT: PopCREGS
-	PLEAVE
+	nope
+	nope
         ret
 @@UOUT: mov     ax,1
         jmp short @@EXIT
-	endp
+UnLoad	endp
 
 ;; This procedure parses the command line and builds an array of
 ;; pointers to each argument.  Arguments are seperated by space's.
@@ -352,66 +343,65 @@ Proc	UnLoad near
 _argc	 dw	 0	 ; The argument count
 _argv	dw	16 dup(0) ; Up to 16 arguments.
 command db	128 dup(?)
-Proc	ParseCommandLine	near
+
+ParseCommandLine Proc	near
 	mov	[_argc],0
-	cmp	[byte es:80h],2
+	cmp	byte ptr es:[80h],2
 	jb	@@END
 	xor	cx,cx
 	mov	cl,[es:80h]	; Get length.
 	SwapSegs
 	dec	cx		; Less one
-	lea	di,[command]
+	xlea	di,[command]
 	mov	si,82h
 	rep	movsb
 	push	cs
 	pop	ds
-	lea	di,[_argv]	; Argument list.
-	lea	si,[command]	; Start address.
+	xlea	di,[_argv]	; Argument list.
+	xlea	si,[command]	; Start address.
 @@SET:	inc	[_argc] 	; Increment argument counter.
 	mov	ax,si		; Base argument addres.
 	stosw
 @@NEX:	lodsb			; Get characters until we hit space of eol
 	cmp	al,32
 	jne	@@NEX2
-	mov	[byte ds:si-1],0 ; Turn space into a zero byte.
+	mov	byte ptr ds:[si-1],0 ; Turn space into a zero byte.
 	jmp short @@SET
 @@NEX2:
 	cmp	al,13
 	je	@@END1
 	or	al,al
 	jnz	@@NEX		; Keep skipping to next arg.
-@@END1: mov	[byte ds:si-1],0	; Zero byte terminate last arg
+@@END1: mov	byte ptr ds:[si-1],0	; Zero byte terminate last arg
 @@END:
 	ret
-	endp
+ParseCommandLine endp
 
 ;;************************************************************************
 ;; Unique harware init code.
 ;;************************************************************************
 
-GF1661	   db	   "=====:Gravis Ultrasound not detected: requires ULTRAMID.",13,10,'$'
-PAS161	db	"=====:Mediavision ProAudio Specturm 16 not detected.",13,10,'$'
-PAUDIO1 db	"=====:Mediavision ProAudio Spectrum not detected.",13,10,'$'
-SBLASTER1 db	"=====:Creative Labs SoundBlaster not detected.",13,10,'$'
-SBPRO1	  db	"=====:Creative Labs SoundBlaster Pro not detected.",13,10,'$'
-SB161	db	"=====:Creative Labs SoundBlaster 16 not detected.",13,10,'$'
-GF1662	   db	   "=====:Gravis Ultrasound detected.",13,10,'$'
-PAS162  db      "Found:Mediavision ProAudio Specturm 16 detected.",13,10,'$'
-PAUDIO2 db	"Found:Mediavision ProAudio Spectrum detected.",13,10,'$'
-SBLASTER2 db	"Found:Creative Labs SoundBlaster detected.",13,10,'$'
-SB162	db	"Found:Creative Labs SoundBlaster 16 detected.",13,10,'$'
-SBPRO2	  db	"Found:Creative Labs SoundBlaster Pro detected.",13,10,'$'
+GF1661	   	db	"=====:Gravis Ultrasound not detected: requires ULTRAMID.",13,10,'$'
+PAS161		db	"=====:Mediavision ProAudio Specturm 16 not detected.",13,10,'$'
+PAUDIO1 	db	"=====:Mediavision ProAudio Spectrum not detected.",13,10,'$'
+SBLASTER1 	db	"=====:Creative Labs SoundBlaster not detected.",13,10,'$'
+SBPRO1	  	db	"=====:Creative Labs SoundBlaster Pro not detected.",13,10,'$'
+SB161		db	"=====:Creative Labs SoundBlaster 16 not detected.",13,10,'$'
+GF1662	   	db	"=====:Gravis Ultrasound detected.",13,10,'$'
+PAS162  	db      "Found:Mediavision ProAudio Specturm 16 detected.",13,10,'$'
+PAUDIO2 	db	"Found:Mediavision ProAudio Spectrum detected.",13,10,'$'
+SBLASTER2 	db	"Found:Creative Labs SoundBlaster detected.",13,10,'$'
+SB162		db	"Found:Creative Labs SoundBlaster 16 detected.",13,10,'$'
+SBPRO2	  	db	"Found:Creative Labs SoundBlaster Pro detected.",13,10,'$'
 
-
-
-Macro	BootStrap	NAME
+BootStrap	Macro	MYNAME
 	LOCAL	@@SKIP
-	lea	si,[NAME]
-	lea	di,[DRIVER]
+	xlea	si,[MYNAME]
+	xlea	di,[DRIVER]
 	mov	cx,MAXDRIVER
 	rep	movsb
-	lea	ax,[DRIVER]	; address of driver.
-	shr	ax,4		; /16
+	xlea	ax,[DRIVER]	; address of driver.
+	ShiftR	ax,4		; /16
 	mov	dx,cs		; segment of code.
 	add	ax,dx		; now have segment of driver.
 	push	ax
@@ -419,20 +409,20 @@ Macro	BootStrap	NAME
 	add	sp,2		; balance stack.
 	or	ax,ax		; did it get loaded!
 	jz	@@SKIP
-	Message NAME&2
+	Message MYNAME&2
 	jmp	@@DONE
 @@SKIP:
-	Message NAME&1
+	Message MYNAME&1
 	endm
 
-Macro	BootStrapBlaster       NAME
+BootStrapBlaster Macro	MYNAME
 	LOCAL	@@SKIP
-	lea	si,[NAME]
-	lea	di,[DRIVER]
+	xlea	si,[MYNAME]
+	xlea	di,[DRIVER]
 	mov	cx,MAXDRIVER
 	rep	movsb
-	lea	ax,[DRIVER]	; address of driver.
-	shr	ax,4		; /16
+	xlea	ax,[DRIVER]	; address of driver.
+	ShiftR 	ax,4		; /16
 
 	mov	dx,cs		; segment of code.
 	add	ax,dx		; now have segment of driver.
@@ -450,10 +440,10 @@ Macro	BootStrapBlaster       NAME
 	add	sp,2		; balance stack.
 	or	ax,ax		; did it get loaded!
 	jz	@@SKIP
-	Message NAME&2
+	Message MYNAME&2
 	jmp	@@DONE
 @@SKIP:
-	Message NAME&1
+	Message MYNAME&1
 	endm
 
 
@@ -466,7 +456,7 @@ MIXADDR dw	?
 MIXDATA dw	?
 DSP_RESET dw	?
 
-Proc	HardwareInit	near
+HardwareInit Proc	near
 	mov	ax,cs
 	mov	ds,ax
 	mov	es,ax
@@ -480,12 +470,12 @@ ENDIF
 	Message auto1
 
 	push	ds
-	lea	ax,[SBIRQ]
+	xlea	ax,[SBIRQ]
 	push	ax
 	push	ds
-	lea	ax,[SBADR]
+	xlea	ax,[SBADR]
 	push	ax
-	call	_DetectBlaster
+	call	DetectBlaster
 	add	sp,8
 	or	ax,ax		; if not detected, we are screwed.
 	jnz	@@FINISH
@@ -530,34 +520,31 @@ IF	ALLDRIVERS
 	jmp	@@DONE
 ENDIF
 @@BLASTIT:
-	BootStrapBlaster       SBLASTER        ; Bootstrap the sound blaster driver.
+	BootStrapBlaster SBLASTER        ; Bootstrap the sound blaster driver.
 @@DONE:
 	ret
-	endp
+HardwareInit	endp
 
-LABEL	SBLASTER    byte
-	include "sblaster.inc"
+;these include files do not end with a comma !
+
+SBLASTER    LABEL	byte
+	include sblaster.inc
 IF	ALLDRIVERS
-LABEL	PAS16	byte
-	include "pas16.inc"
-LABEL	PAUDIO	byte
-	include "paudio.inc"
-LABEL	SBPRO	byte
-	include "sbpro.inc"
-LABEL	SB16	byte
-	include "sb16.inc"
-LABEL	GF166	byte
-	include "gf166.inc"
+PAS16	LABEL	byte
+	include pas16.inc
+PAUDIO	LABEL	byte
+	include paudio.inc
+SBPRO	LABEL	byte
+	include sbpro.inc
+SB16	LABEL	byte
+	include sb16.inc
+GF166	LABEL	byte
+	include gf166.inc
 ENDIF
-
-MACRO   CPROC   NAME            ; MACRO TO ESTABLISH A C CALLABLE PROCEDURE.
-	PUBLIC  &NAME
-PROC    &NAME  NEAR
-	ENDM
-
-VERS		dw	?
-_IO_ADDX       DW   0H          ; DEFAULT I/O ADDRESS.
-_INTR_NUM      DB   0           ; DEFAULT IS INTERUPT #7
+		
+VERS		dw   ?
+_IO_ADDX       	DW   0H          ; DEFAULT I/O ADDRESS.
+_INTR_NUM      	DB   0           ; DEFAULT IS INTERUPT #7
 
 INT2    DD      ?       ; HOLDS ADDRESS OF ORIGINAL INTERRUPT VECTORS.
 INT3    DD      ?       ; WHICH WE STEAL TO PERFORM AUTODECTION.
@@ -565,9 +552,9 @@ INT5    DD      ?
 INT7    DD      ?
 INT10   DD      ?
 
-WAIT_TIME        EQU    0200H
-DMA_VOICE_IN     EQU    45H
-DMA_VOICE_OUT    EQU    49H
+WAIT_TIME        	EQU    0200H
+DMA_VOICE_IN     	EQU    45H
+DMA_VOICE_OUT    	EQU    49H
 
 DSP_ID_CMD              EQU    0E0H
 DSP_VER_CMD             EQU    0E1H
@@ -591,14 +578,14 @@ DSP_OFFSPK_CMD          EQU    0D3H
 DSP_CONT_DMA_CMD        EQU    0D4H
 DSP_INTRQ_CMD           EQU    0F2H
 
-CMS_TEST_CODE            EQU         0C6H
-RESET_TEST_CODE          EQU         0AAH
+CMS_TEST_CODE           EQU    0C6H
+RESET_TEST_CODE         EQU    0AAH
 
-CMS_EXIST                EQU         1
-FM_MUSIC_EXIST           EQU         2
-CTV_VOICE_EXIST          EQU         4
+CMS_EXIST               EQU    1
+FM_MUSIC_EXIST          EQU    2
+CTV_VOICE_EXIST         EQU    4
 
-FM_WAIT_TIME             EQU         40H
+FM_WAIT_TIME            EQU    40H
 
 ;; SOUNDBLASTER DETECTION CODE.....................
 
@@ -607,44 +594,37 @@ PORTPOSSIBILITIES       DW      220H,210H,230H,240H,250H,260H
 PIC0_val        db      ?
 PIC1_val        db      ?
 
-Macro   SavePic
+SavePic	Macro   
 	in      al,0A1h
 	mov     [cs:PIC1_val],al
 	in      al,21h
 	mov     [cs:PIC0_val],al
 	endm
 
-Macro   RestorePic
+RestorePic	Macro   
 	mov     al,[cs:PIC1_val]
 	out     0A1h,al
 	mov     al,[cs:PIC0_val]
 	out     21h,al
 	endm
 
-
 ;; INITIALIZE THE SOUND BLASTER.
 ;;
 ;;      ON ENTRY: NOTHING.
 ;;         EXIT:  1 -> SOUNDBLASTESR FOUND.
 ;;                0 -> NO SOUNDBLASTER DETECTED.
-CPROC   _DetectBlaster
-	ARG     BASEADR:DWORD,IRQ:DWORD
-	PENTER	0
-	push es
-	push ds
-	push si
-	push di
+DetectBlaster	PROC NEAR C USES ES DS SI DI BASEADR:DWORD,IRQ:DWORD
 	MOV     AX,CS
 	MOV     DS,AX
 	MOV     ES,AX
-
-	LEA     DI,[PORTPOSSIBILITIES]
+	
+	xlea     DI,[PORTPOSSIBILITIES]
 	MOV     CX,6            ; TRY ALL 6 POSSIBILITIES.
 @@LOP:  MOV     AX,[DI]         ; GET PORT POSSIBILITY.
 	MOV     [_IO_ADDX],AX   ; SAVE IN IO_ADDX
 	PUSH    CX
 	PUSH    DI
-	CALL    DETECTBLASTER         ; SEE IF THERE
+	CALL    VERIFY_BLASTER         ; SEE IF THERE
 	POP     DI
 	POP     CX
 	JZ      @@FOUND
@@ -662,20 +642,15 @@ CPROC   _DetectBlaster
 	MOV     AL,[_INTR_NUM]  ; RETURN INTERRUPT NUMBER FOUND.
 	STOSW
 @@ERR:
-	pop di
-	pop si
-	pop ds
-	pop es
-
-	PLEAVE
+	nope 
+	nope
 	RET
-	ENDP
-
+DetectBlaster	ENDP
 
 ;; ON ENTRY: _IO_ADDX = TO THE ADDRESS TO SEARCH AT.
 ;;    EXIT: ZERO CONDITION -> SOUND BLASTER FOUND, HERE.
 ;;          NON-ZERO CONDITION, SOUND BLASTER NOT FOUND.
-PROC    DETECTBLASTER  NEAR
+VERIFY_BLASTER	PROC    NEAR
 	CALL   RESET_DSP                ; RESET THE DSP
 	JNZ    @@ID90                   ;
 	CALL   VERIFY_IO_CHK
@@ -687,128 +662,123 @@ PROC    DETECTBLASTER  NEAR
 	SUB    AX,AX
 @@ID90:
 	RET
-	ENDP
+VERIFY_BLASTER	ENDP
 
 ;; VERIFY THIS IO ADDRESS.
-PROC    VERIFY_IO_CHK   NEAR
-       MOV    BX,2
-       MOV    AL,DSP_ID_CMD
-       MOV    DX,[_IO_ADDX]
-       ADD    DX,0CH
-       CALL   WRITE_DSP_TIME
-       JC     @@VIO90
+VERIFY_IO_CHK PROC    NEAR
+       	MOV    BX,2
+       	MOV    AL,DSP_ID_CMD
+       	MOV    DX,[_IO_ADDX]
+       	ADD    DX,0CH
+       	CALL   WRITE_DSP_TIME
+       	JC     @@VIO90
 
-       MOV    AL,0AAH
-       CALL   WRITE_DSP_TIME
-       JC     @@VIO90
+       	MOV    AL,0AAH
+       	CALL   WRITE_DSP_TIME
+       	JC     @@VIO90
 
-       CALL   READ_DSP_TIME
-       JC     @@VIO90
+       	CALL   READ_DSP_TIME
+       	JC     @@VIO90
 
-       CMP    AL,055H
-       JNE    @@VIO90
+       	CMP    AL,055H
+       	JNE    @@VIO90
 
-       SUB    BX,BX
+       	SUB    BX,BX
 
 @@VIO90:
-       MOV    AX,BX
-       OR     AX,AX
-       RET
-       ENDP
-
+       	MOV    AX,BX
+       	OR     AX,AX
+       	RET
+VERIFY_IO_CHK        ENDP
 
 ;; HERE, WE VERIFY THIS INTERRUPT.
-PROC    VERIFY_INTR     NEAR
-       cli
-       SavePic
-       MOV      AL,2
-       LEA      DX,[DUMMY_DMA_INT2]
-       LEA      BX,[INT2]               ; STORAGE FOR OLD ADDRESS.
-       CALL     SETUP_INTERRUPT
-       MOV      AL,3
-       LEA      DX,[DUMMY_DMA_INT3]
-       LEA      BX,[INT3]
-       CALL     SETUP_INTERRUPT
-       MOV      AL,5
-       LEA      DX,[DUMMY_DMA_INT5]
-       LEA      BX,[INT5]
-       CALL     SETUP_INTERRUPT
-       MOV      AL,7
-       LEA      DX,[DUMMY_DMA_INT7]
-       LEA      BX,[INT7]
-       CALL     SETUP_INTERRUPT
-       MOV      AL,10
-       LEA      DX,[DUMMY_DMA_INT10]
-       LEA      BX,[INT10]
-       CALL     SETUP_INTERRUPT
-       sti
-       MOV      [_INTR_NUM],0
-       MOV      DX,[_IO_ADDX]
-       ADD      DX,0CH
-       MOV      AL,DSP_INTRQ_CMD
-       CALL     WRITE_DSP
-       SUB      AX,AX
-       MOV      CX,WAIT_TIME*4
+VERIFY_INTR PROC   NEAR
+       	cli
+       	SavePic
+       	MOV      AL,2
+       	xlea      DX,[DUMMY_DMA_INT2]
+       	xlea      BX,[INT2]               ; STORAGE FOR OLD ADDRESS.
+       	CALL     SETUP_INTERRUPT
+       	MOV      AL,3
+       	xlea      DX,[DUMMY_DMA_INT3]
+       	xlea      BX,[INT3]
+       	CALL     SETUP_INTERRUPT
+       	MOV      AL,5
+       	xlea      DX,[DUMMY_DMA_INT5]
+       	xlea      BX,[INT5]
+       	CALL     SETUP_INTERRUPT
+       	MOV      AL,7
+       	xlea      DX,[DUMMY_DMA_INT7]
+       	xlea      BX,[INT7]
+       	CALL     SETUP_INTERRUPT
+       	MOV      AL,10
+       	xlea      DX,[DUMMY_DMA_INT10]
+       	xlea      BX,[INT10]
+       	CALL     SETUP_INTERRUPT
+       	sti
+       	MOV      [_INTR_NUM],0
+       	MOV      DX,[_IO_ADDX]
+       	ADD      DX,0CH
+       	MOV      AL,DSP_INTRQ_CMD
+       	CALL     WRITE_DSP
+       	SUB      AX,AX
+       	MOV      CX,WAIT_TIME*4
 @@VI10:
-       CMP      [_INTR_NUM],0
-       JNZ      @@VI90
-       LOOP     @@VI10
-       MOV      AX,3
+       	CMP      [_INTR_NUM],0
+       	JNZ      @@VI90
+       	LOOP     @@VI10
+       	MOV      AX,3
 @@VI90:
-       PUSH    AX
-       cli
-       MOV     AL,2
-       LEA     BX,[INT2]
-       CALL    RESTORE_INTERRUPT
-       MOV     AL,3
-       LEA     BX,[INT3]
-       CALL    RESTORE_INTERRUPT
-       MOV     AL,5
-       LEA     BX,[INT5]
-       CALL    RESTORE_INTERRUPT
-       MOV     AL,7
-       LEA     BX,[INT7]
-       CALL    RESTORE_INTERRUPT
-       MOV     AL,10
-       LEA     BX,[INT10]
-       CALL    RESTORE_INTERRUPT
-       RestorePic
-       sti
-       POP     AX
-       OR      AX,AX
-       RET
-       ENDP
+       	PUSH    AX
+       	cli
+       	MOV     AL,2
+       	xlea     BX,[INT2]
+       	CALL    RESTORE_INTERRUPT
+       	MOV     AL,3
+       	xlea     BX,[INT3]
+       	CALL    RESTORE_INTERRUPT
+       	MOV     AL,5
+       	xlea     BX,[INT5]
+       	CALL    RESTORE_INTERRUPT
+       	MOV     AL,7
+       	xlea     BX,[INT7]
+       	CALL    RESTORE_INTERRUPT
+       	MOV     AL,10
+       	xlea     BX,[INT10]
+       	CALL    RESTORE_INTERRUPT
+       	RestorePic
+       	sti
+       	POP     AX
+       	OR      AX,AX
+       	RET
+VERIFY_INTR       ENDP
 
-
-
-PROC    CHK_DSP_VERSION         NEAR
-       MOV    AL,DSP_VER_CMD
-       MOV    DX,[_IO_ADDX]
-       ADD    DL,0CH
-       CALL   WRITE_DSP
-       CALL   READ_DSP
-       MOV    AH,AL
-       CALL   READ_DSP
-       mov	[VERS],ax
-       MOV    BX,1
-       CMP    AX,101H
-       JB     @@CDV90
-       SUB    BX,BX
+CHK_DSP_VERSION  PROC   NEAR
+       	MOV    AL,DSP_VER_CMD
+       	MOV    DX,[_IO_ADDX]
+       	ADD    DL,0CH
+       	CALL   WRITE_DSP
+       	CALL   READ_DSP
+       	MOV    AH,AL
+       	CALL   READ_DSP
+       	mov	[VERS],ax
+       	MOV    BX,1
+       	CMP    AX,101H
+       	JB     @@CDV90
+       	SUB    BX,BX
 @@CDV90:
-       MOV    AX,BX
-       OR     AX,AX
-       RET
-       ENDP
+       	MOV    AX,BX
+       	OR     AX,AX
+       	RET
+CHK_DSP_VERSION  ENDP
 
 ;;
-
 ;------------------------------------------------------------------------;
 ; WRITE_DSP WRITES AL TO THE SOUND BLASTER AFTER WAITING FOR LAST COMMAND
 ; TO COMPLETE
 ;------------------------------------------------------------------------;
-PROC    WRITE_DSP       NEAR
-	PUSH    CX              ; STUFF WITH CX IS NEW TIMEOUT CODE FOR V2.0
-	MOV     CX,-1
+WRITE_DSP PROC NEAR USES CX
+	MOV     CX,-1           ; STUFF WITH CX IS NEW TIMEOUT CODE FOR V2.0
 	MOV     AH,AL
 @@WD10: DEC     CX              ; IF TIMEOUT, EXIT LOOP
 	JZ      @@WD11
@@ -819,13 +789,10 @@ PROC    WRITE_DSP       NEAR
 @@WD11:
 	MOV     AL,AH           ; GET BYTE TO SEND.
 	OUT     DX,AL           ; SEND IT
-	POP     CX              ; RESTORE CALLER'S CX REGISTER.
 	RET
-	ENDP
+WRITE_DSP ENDP
 
-PROC    WRITE_DSP_TIME  NEAR
-	PUSH    CX              ; SAVE CALLER'S CX REGISTER.
-
+WRITE_DSP_TIME PROC NEAR USES CX 
 	MOV     CX,WAIT_TIME    ; APPLICATION WAIT TIME (DANGEROUS FOR VERY FAST MACHINES?)
 	MOV     AH,AL           ; SAVE CHARACTRER TO SEND IN AH.
 
@@ -841,65 +808,52 @@ PROC    WRITE_DSP_TIME  NEAR
 	OUT     DX,AL           ; SEND THE DAMNED THING.
 	CLC
 @@WDT90:
-	POP     CX              ; RESTORE CALLER'S CX REGISTER.
 	RET
-	ENDP
+WRITE_DSP_TIME	ENDP
 
+READ_DSP_TIME  PROC   NEAR USES CX DX
+       	MOV    	DX,[_IO_ADDX]
+       	ADD    	DL,0EH
 
-
-PROC    READ_DSP_TIME   NEAR
-       PUSH   CX
-       PUSH   DX
-
-       MOV    DX,[_IO_ADDX]
-       ADD    DL,0EH
-
-       MOV    CX,WAIT_TIME
+       	MOV   	CX,WAIT_TIME
 
 @@RDT10:
-       IN     AL,DX
-       OR     AL,AL
-       JS     @@RDT20
+       	IN     	AL,DX
+       	OR     	AL,AL
+       	JS     	@@RDT20
 
-       LOOP   @@RDT10
-       STC
-       JMP    SHORT @@RDT90
+       	LOOP   	@@RDT10
+       	STC
+       	JMP    	SHORT @@RDT90
 
 @@RDT20:
-       SUB    DL,4
-       IN     AL,DX
-       CLC
+       	SUB    	DL,4
+       	IN     	AL,DX
+       	CLC
 
 @@RDT90:
-       POP    DX
-       POP    CX
-       RET
-	ENDP
+       	RET
+READ_DSP_TIME 	ENDP
 
-
-PROC    READ_DSP        NEAR
-       PUSH   DX
-       MOV    DX,[_IO_ADDX]
-       ADD    DL,0EH
-       SUB    AL,AL
+READ_DSP PROC  	NEAR USES DX
+       	MOV    	DX,[_IO_ADDX]
+       	ADD    	DL,0EH
+       	SUB    	AL,AL
 
 @@RD10:
-       IN     AL,DX
-       OR     AL,AL
-       JNS    @@RD10
+       	IN     	AL,DX
+      	OR     	AL,AL
+       	JNS    	@@RD10
 
-       SUB    DL,4
-       IN     AL,DX
+       	SUB    	DL,4
+       	IN     	AL,DX
+       	RET
+READ_DSP ENDP
 
-       POP    DX
-       RET
-	ENDP
-
-
-PROC    RESET_DSP       NEAR
+RESET_DSP PROC  NEAR
 	MOV     DX,[_IO_ADDX]
 	ADD     DL,6
-
+	
 	MOV     AL,1                ;JCM (USE THIS INSTEAD)
 	OUT     DX,AL               ;JCM
 					;JCM
@@ -913,55 +867,50 @@ PROC    RESET_DSP       NEAR
 	MOV     CL,20H
 
 @@RDSP10:
-       CALL   READ_DSP_TIME
-       CMP    AL,0AAH
-       JE     @@RDSP20
-       DEC    CL
-       JNZ    @@RDSP10
-       MOV    AX,2
-       JMP    SHORT @@RDSP90
+       	CALL   	READ_DSP_TIME
+       	CMP    	AL,0AAH
+       	JE     	@@RDSP20
+       	DEC    	CL
+       	JNZ    	@@RDSP10
+       	MOV    	AX,2
+       	JMP    	SHORT @@RDSP90
 @@RDSP20:
-       SUB    AX,AX
+       	SUB    	AX,AX
 @@RDSP90:
-       OR     AX,AX
-       RET
-       ENDP
-
+       	OR     	AX,AX
+       	RET
+RESET_DSP    ENDP
 
 ;-------------------------------------------------
 ; entry: AL = INTERRUPT NUM                      |
 ;        DX = new vector ofs, seg is alway CS    |
 ;        BX = offset of store buffer             :
 ;-------------------------------------------------
-Proc    SETUP_INTERRUPT near
-       PUSH   BX
-       PUSH   CX
-       PUSH   DX
-
+SETUP_INTERRUPT Proc near USES BX CX DX
 	xor     ah,ah           ; Zero high byte.
-       MOV    CL,AL                    ; preserve interrupt number for use
-       cmp     al,8
-       jb      @@calc_vect
+       	MOV    	CL,AL                    ; preserve interrupt number for use
+       	cmp     al,8
+       	jb      @@calc_vect
 	add     al,60h         ; index slcae PIC vectors if IRQ > 7
 @@calc_vect:
-       ADD    AL,8                     ; calculate interrupt vector addx
-       SHL    Ax,1
-       SHL    Ax,1
-       MOV    DI,AX
+       	ADD    	AL,8                     ; calculate interrupt vector addx
+       	SHL   	Ax,1
+       	SHL    	Ax,1
+       	MOV    	DI,AX
 
-       PUSH   ES                       ; setup and preserve interrupt
+       	PUSH   	ES                       ; setup and preserve interrupt
 
-       SUB    AX,AX
-       MOV    ES,AX
-       MOV    AX,[ES:DI]
-       MOV    [cs:BX],AX               ;JCM
-       MOV    [ES:DI],DX
+       	SUB    	AX,AX
+       	MOV    	ES,AX
+       	MOV    	AX,ES:[DI]
+       	MOV   	cs:[BX],AX               ;JCM
+       	MOV    	ES:[DI],DX
 
-       MOV    AX,[ES:DI+2]
-       MOV    [cs:BX+2],AX             ;JCM
-       MOV    [ES:DI+2],CS
+       	MOV    	AX,ES:[DI+2]
+       	MOV    	cs:[BX+2],AX             ;JCM
+       	MOV    	ES:[DI+2],CS
 
-       POP    ES
+       	POP  	ES
 
 	mov     bx,1
 	shl     bx,cl
@@ -973,79 +922,73 @@ Proc    SETUP_INTERRUPT near
 	and     al,bl
 	out     21h,al
 
-       STI
-       POP    DX
-       POP    CX
-       POP    BX
-       RET
-       endp
-
+       	STI
+       	RET
+SETUP_INTERRUPT  endp
 
 ;-------------------------------------------------
 ; entry: AL = INTERRUPT NUM                      |
 ;        BX = offset to stored addx              |
 ;-------------------------------------------------
-Proc    RESTORE_INTERRUPT       near
-       MOV    CL,AL
-       mov     al,cl           ; Get back interrupt number.
-       xor     ah,ah
-       cmp      al,8
-       jb       @@calc_vect
-       add      al,60h          ; index slave PIC if IRQ > 7
+RESTORE_INTERRUPT Proc     near
+       	MOV    	CL,AL
+       	mov    	al,cl           ; Get back interrupt number.
+       	xor    	ah,ah
+       	cmp    	al,8
+       	jb     	@@calc_vect
+       	add    	al,60h          ; index slave PIC if IRQ > 7
 @@calc_vect:
-       ADD    AL,8                      ; calculate interrupt vector addx
-       SHL    Ax,1
-       SHL    Ax,1
-       MOV    DI,AX
-       PUSH   ES                       ; restore interrupt vector
-       SUB    AX,AX
-       MOV    ES,AX
-       MOV    AX,[cs:BX]               ;JCM
-       MOV    [ES:DI],AX
-       MOV    AX,[cs:BX+2]             ;JCM
-       MOV    [ES:DI+2],AX
-       POP    ES
-       RET
-       endp
+       	ADD    	AL,8                      ; calculate interrupt vector addx
+       	SHL    	Ax,1
+       	SHL    	Ax,1
+       	MOV    	DI,AX
+       	PUSH   	ES                       ; restore interrupt vector
+      	SUB    	AX,AX
+       	MOV    	ES,AX
+       	MOV    	AX,cs:[BX]               ;JCM
+       	MOV    	ES:[DI],AX
+       	MOV    	AX,cs:[BX+2]             ;JCM
+      	MOV    	ES:[DI+2],AX
+       	POP    	ES
+       	RET
+RESTORE_INTERRUPT   endp
 
-PROC    DUMMY_ISR       FAR
-LABEL   DUMMY_DMA_INT2  WORD
-       PUSH   DX
-       MOV    DL,2
-       JMP    SHORT @@OUT
-LABEL   DUMMY_DMA_INT3  WORD
-       PUSH   DX
-       MOV    DL,3
-       JMP    SHORT @@OUT
-LABEL   DUMMY_DMA_INT5  WORD
-       PUSH   DX
-       MOV    DL,5
-       JMP    SHORT @@OUT
-LABEL   DUMMY_DMA_INT7  WORD
-       PUSH   DX
-       MOV    DL,7
-       jmp      short @@OUT
-LABEL   DUMMY_DMA_INT10 WORD
-	push    dx
-	mov     dl,10
+DUMMY_ISR PROC  FAR 
+DUMMY_DMA_INT2  LABEL	WORD
+       	PUSH   	DX
+       	MOV    	DL,2
+       	JMP    	SHORT @@OUT
+DUMMY_DMA_INT3  LABEL	WORD
+       	PUSH   	DX
+       	MOV    	DL,3
+       	JMP    	SHORT @@OUT
+DUMMY_DMA_INT5  LABEL	WORD
+       	PUSH   	DX
+       	MOV    	DL,5
+       	JMP    	SHORT @@OUT
+DUMMY_DMA_INT7  LABEL	WORD
+       	PUSH   	DX
+       	MOV    	DL,7
+       	jmp    	short @@OUT
+DUMMY_DMA_INT10 LABEL	WORD
+       	PUSH   	DX
+	mov    	dl,10
 	jmp short @@OUT
 @@OUT:
-       PUSH   AX
-       MOV    [CS:_INTR_NUM],DL
-       MOV    DX,[_IO_ADDX]
-       ADD    DX,0EH
-       IN     AL,DX
-       MOV    AL,20H
-       OUT    20H,AL            ; SEND A NON SPECIFIC EOI
-       cmp      [cs:_INTR_NUM],7
-       jle      @@DONE
-       out      0a0h,al         ; Acknowledge secondary PIC
+       	PUSH   	AX
+       	MOV    	[CS:_INTR_NUM],DL
+       	MOV    	DX,[_IO_ADDX]
+       	ADD    	DX,0EH
+       	IN    	AL,DX
+       	MOV    	AL,20H
+       	OUT    	20H,AL            ; SEND A NON SPECIFIC EOI
+       	cmp    	[cs:_INTR_NUM],7
+       	jle    	@@DONE
+       	out    	0a0h,al         ; Acknowledge secondary PIC
 @@DONE:
-       POP    AX
-       POP    DX
-       IRET
-       ENDP
+       	POP    	AX
+       	POP    	DX
+       	IRET
+DUMMY_ISR  ENDP
 
-	ENDS
 	end	START
-

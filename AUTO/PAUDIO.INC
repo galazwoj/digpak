@@ -595,4 +595,4 @@
 	db	0c0h,075h,0e9h,0c6h,044h,0ffh,000h,0c3h,033h
 	db	0c0h,0e8h,093h,0f3h,0a9h,004h,000h,075h,008h
 	db	090h,090h,0b8h,001h,000h,0ebh,004h,090h,0e8h
-	db	035h,0f4h,0c3h,
+	db	035h,0f4h,0c3h
