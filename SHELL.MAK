@@ -11,7 +11,7 @@ all:			\
 	sbpro.com	\
 	cvxsnd.com	\
 	source.com	\
-	STFX.com		
+	stfx.com		
 
 # Builds all of the digpak drivers from SHELL.ASM BUT does not build the
 # orphan drivers.  Run ORPHAN.MAK to build the orphan sound drivers that
@@ -56,7 +56,7 @@ cvxsnd.com:	shell.asm soundrv.inc prologue.mac common.inc state.inc vbeai.inc co
 source.com:	shell.asm soundrv.inc prologue.mac common.inc state.inc vbeai.inc compat.inc                                                           
 		ml /AT /Cp /I. 	/Fesource   /Fosource   /Flsource   /DBUILD=10 			shell.asm			
 		                                                                                            
-STFX.com:	shell.asm soundrv.inc prologue.mac common.inc state.inc vbeai.inc compat.inc                                                           
+stfx.com:	shell.asm soundrv.inc prologue.mac common.inc state.inc vbeai.inc compat.inc                                                           
 		ml /AT /Cp /I. 	/FeSTFX     /FoSTFX     /FlsSTFX    /DBUILD=9 /DSTFX=1 		shell.asm	
 		  
 clean:	

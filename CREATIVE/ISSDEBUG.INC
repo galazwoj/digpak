@@ -22,39 +22,32 @@
 ;                        and then a space.
 ;
 ;----------------------------------------------------------------------------
-MACRO  D1 		 text
-	     LOCAL   string_buffer
-			 LOCAL	 end_debug
-
+D1	MACRO 	text
+     	LOCAL   string_buffer
+	LOCAL	end_debug
 ifndef NODEBUG
-			 push 	 cs
-	     push    OFFSET string_buffer
-			 int		 85h
-			 add		 sp, 4
-			 jmp		 end_debug
-
-LABEL 	string_buffer BYTE
-				db		"&text&", 13, 10, 0
+	push 	cs
+	push    OFFSET string_buffer
+	int	85h
+	add	sp, 4
+	jmp	end_debug
+string_buffer: 	db "&text&", 13, 10, 0
 endif
 end_debug:
        ENDM
 
 ;----------------------------------------------------------------------------
 
-MACRO  D2 		 text
-	     LOCAL   string_buffer
-			 LOCAL	 end_debug
-
+D2	MACRO 	text
+    	LOCAL   string_buffer
+	LOCAL	end_debug
 ifndef NODEBUG
-			 push 	 cs
-	     push    OFFSET string_buffer
-			 int		 85h
-			 add		 sp, 4
-			 jmp		 end_debug
-
-LABEL 	string_buffer BYTE
-        db    "&text& ", 0
+	push 	cs
+     	push    OFFSET string_buffer
+	int	85h
+	add	sp, 4
+	jmp	end_debug
+string_buffer:  db "&text& ", 0
 endif
 end_debug:
        ENDM
-

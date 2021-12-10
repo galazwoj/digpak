@@ -54,11 +54,11 @@ char far *currentbuffer;
 int AUTOINITDMA;
 int DMALOAD;
 
-void main(int argc,char **argv)
+int main(int argc,char **argv)
 {
 	char far *effect;
 	char far *sound;
-  long int siz;
+  	long int siz;
 	int soundsize;
 	int xcon=0;
 	SNDSTRUC snd;
@@ -66,7 +66,7 @@ void main(int argc,char **argv)
 	if ( argc != 2 )
 	{
 		printf("Usage: PEND <filename>\n");
-		exit(1);
+		return 1;
 	}
 
 
@@ -74,21 +74,21 @@ void main(int argc,char **argv)
 	if ( !effect )
 	{
 		printf("File '%s' not found, or too large to play.\n",argv[1]);
-		exit(1);
+		return 1;
 	}
 
 
 	if ( !LoadDigPak("SOUNDRV.COM") )
 	{
 		printf("Failed to load sound driver.\n");
-		exit(1);
+		return 1;
 	}
 
 	if ( !InitDigPak() )
 	{
 		UnLoadDigPak();
 		printf("Failed to initialize sound driver.\n");
-		exit(1);
+		return 1;
 	}
 
 	AUTOINITDMA = 0; // off by default.
@@ -119,7 +119,7 @@ void main(int argc,char **argv)
 		else
 		{
 			printf("DMA buffer crosses segment boundary\n");
-			exit(1);
+			return 1;
 		}
 	}
 
@@ -170,9 +170,7 @@ void main(int argc,char **argv)
 
 	WaitSound();
 	UnLoadDigPak();
-
 }
-
 
 void PostPending(SNDSTRUC far *snd)
 {
@@ -204,6 +202,5 @@ int PendingStatus(void)
 	}
 	else
 		pend = AudioPendingStatus();
-
 	return(pend);
 }
