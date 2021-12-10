@@ -42,16 +42,13 @@ ENDIF
 	; Driver load and unload calls.  Requires that the application provide
 	; memory allocation functions and access to DOSCALLS.OBJ.
 
-SMALL_MODEL	equ	0   ;: True if declaring C procedures as near.
-			; It is false here because all procedures are
-			; far, so that you can link any memory model
-			; to theme. (They are prototyped as well.)
-
+	.xlist
         INCLUDE PROLOGUE.MAC          		;; common prologue
+	.list
 
-.MODEL SMALL, C
-.CODE
-	ASSUME	DS: _TEXT, ES: NOTHING
+	.MODEL LARGE, C
+	.CODE 
+;	ASSUME	DS: _TEXT, ES: NOTHING
 
 IF	LOADABLE_DRIVERS
 ;; These external procedures are required for the Load and Unload sound
@@ -64,12 +61,15 @@ IF	LOADABLE_DRIVERS
 	extrn	memalloc:far	; Application controlled memory allocation.
 	extrn	floadpara:far	    ; File load procedure, found in DOSCALLS!
 ENDIF
+
         	
-IF	SMALL_MODEL
-CPROC equ	<Proc near C>
-ELSE
+IF @CodeSize
 CPROC equ	<Proc far  C>
+ELSE
+CPROC equ	<Proc near C>
 ENDIF
+;; 1 if declaring C procedures as far, so that you can link any memory model to theme. 
+;; They are prototyped as well in DIGPLAY.H header file.
 
 ;;	int  DigPlay(SNDSTRUC far *sndplay);	     // 688h -> Play 8 bit digitized sound.
 DigPlay	CPROC USES DS SI MYDATA:DWORD

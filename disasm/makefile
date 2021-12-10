@@ -14,7 +14,6 @@ gf166.com:      gf166.asm ..\soundrv.inc ..\prologue.mac ..\compat.inc
 gf1digi.com:      gf1digi.asm  
 	ml /AT /Cp /I..\gravis /Fegf1digi /Fogf1digi /Flgf1digi /Fmgf1digi gf1digi.asm	
 
-
 sb16.com:      	sb16.asm ..\soundrv.inc ..\prologue.mac ..\compat.inc
 	ml /AT /Cp /I.. /Fesb16 /Fosb16 /Flsb16 sb16.asm	
 

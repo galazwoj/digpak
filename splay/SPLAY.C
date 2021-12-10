@@ -4,7 +4,12 @@
 /* standard library functions to read a file in and play it back.            */
 /* Written by John W. Ratcliff, December 1991, needs to link to DIGPLAY0.OBJ */
 /*****************************************************************************/
+/*
+ * Uses CONIO.H for console display
+ */
+
 #include <stdio.h>
+#include <conio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <alloc.h>
@@ -14,7 +19,7 @@
 unsigned char far *PlaySoundFile(char *filename,int frequency);
 void far *FileLoad(char *fname,long int *siz);
 
-void main(int argc,char **argv)
+int main(int argc,char **argv)
 {
 	int frequency=9000; // Default playback frequency.
 
@@ -25,24 +30,28 @@ void main(int argc,char **argv)
 	}
 	if (argc != 2)
 	{
-		printf("Usage: SPLAY <filename> (frequency)\n");
-		printf("where <filename> is the name of an 8 bit unsigned, digitized sound sample, and\n");
-		printf("(frequency) is the optional frequency you would wish it played at (default 9khz).\n");
-		printf("Copyright (c) 1991, THE Audio Solution.\n");
-		printf("Written by John W. Ratcliff, 1991.\n");
-		exit(1);
+		cprintf("Usage: SPLAY <filename> (frequency)\n");
+		cprintf("where <filename> is the name of an 8 bit unsigned, digitized sound sample, and\n");
+		cprintf("(frequency) is the optional frequency you would wish it played at (default 9khz).\n");
+		cprintf("Copyright (c) 1991, THE Audio Solution.\n");
+		cprintf("Written by John W. Ratcliff, 1991.\n");
+		return 1;
 	}
 
 	if (!CheckIn())  // Is a sound driver currently resident?
 	{
-		printf("No sound driver resident.\n");
-		exit(1);
+		cprintf("No sound driver resident.\n");
+		return 1;
 	}
 
 	SetPCMVolume(75,75);
 
-	if ( PlaySoundFile(argv[1],frequency) == NULL ) printf("File '%s' not found, or insuficient memory.\n",argv[1]);
-
+	if ( PlaySoundFile(argv[1],frequency) == NULL ) 
+	{
+		cprintf("File '%s' not found, or insuficient memory.\n",argv[1]);
+		return 1;
+	}
+	return 0;
 }
 
 // Reads a file into allocated memory, and will play it back.

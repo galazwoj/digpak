@@ -27,37 +27,37 @@
 
 /* Bit flags to denote audio driver capabilities. */
 /* returned by the AudioCapabilities call.				*/
-#define PLAYBACK 1    // Bit zero true if can play audio in the background.
-#define MASSAGE  2    // Bit one is true if data is massaged.
-#define FIXEDFREQ 4   // Bit two is true if driver plays at fixed frequency.
-#define USESTIMER 8   // Bit three is true, if driver uses timer.
-#define SHARESTIMER 16 // Bit 4, timer can be shared (BETA!!!!!)
-#define LOOPEND 32		// bit 5, support looped samples, and pending sounds (BETA!!!)
+#define PLAYBACK 1    	// Bit zero true if can play audio in the background.
+#define MASSAGE  2    	// Bit one is true if data is massaged.
+#define FIXEDFREQ 4   	// Bit two is true if driver plays at fixed frequency.
+#define USESTIMER 8   	// Bit three is true, if driver uses timer.
+#define SHARESTIMER 16 	// Bit 4, timer can be shared (BETA!!!!!)
+#define LOOPEND 32	// bit 5, support looped samples, and pending sounds (BETA!!!)
 #define STEREOPAN 64	// Bit 6, supports stereo panning.
-#define STEREOPLAY 128 // Bit 7, supports 8 bit PCM stereo playback.
+#define STEREOPLAY 128 	// Bit 7, supports 8 bit PCM stereo playback.
 #define AUDIORECORD 256 // Bit 8, supports audio recording!
-#define DMABACKFILL 512  // Bit 9, support DMA backfilling.
-#define PCM16 1024			// Bit 10, supports 16 bit digital audio.
+#define DMABACKFILL 512 // Bit 9, support DMA backfilling.
+#define PCM16 1024	// Bit 10, supports 16 bit digital audio.
 
 typedef struct
 {
-  char far *sound;     // address of audio data.
-  unsigned int sndlen; // Length of audio sample.
-  int far  *IsPlaying; // Address of play status flag.
-  int	   frequency;  // Playback frequency.
+  char far *sound;     	// address of audio data.
+  unsigned int sndlen; 	// Length of audio sample.
+  int far  *IsPlaying; 	// Address of play status flag.
+  int	   frequency;  	// Playback frequency.
 } SNDSTRUC;
 
-int  far DigPlay(SNDSTRUC far *sndplay); // 688h -> Play 8 bit digitized sound.
-int  far SoundStatus(void);  // 689h -> Report sound driver status.
-void far MassageAudio(SNDSTRUC far *sndplay); // 68Ah -> Preformat 8 bit digitized sound.
-void far DigPlay2(SNDSTRUC far *sndplay); // 68Bh -> Play preformatted data.
-int  far AudioCapabilities(void); // 68Ch -> Report audio driver capabilities.
-int  far DigPakIdentityString(char far *str); // 68Ch -> reports ID string of
-					      // sound driver. returns string length.
-int  far ReportSample(void); // 68Dh -> Report current sample address.
-void far SetCallBackAddress(void far *proc); // 68Eh -> Set procedure callback address.
-void far StopSound(void); // 68Fh -> Stop current sound from playing.
-void far *far ReportCallbackAddress(void); // 691h -> report current callback address.
+int  far DigPlay(SNDSTRUC far *sndplay); 	// 688h -> Play 8 bit digitized sound.
+int  far SoundStatus(void);  			// 689h -> Report sound driver status.
+void far MassageAudio(SNDSTRUC far *sndplay); 	// 68Ah -> Preformat 8 bit digitized sound.
+void far DigPlay2(SNDSTRUC far *sndplay); 	// 68Bh -> Play preformatted data.
+int  far AudioCapabilities(void); 		// 68Ch -> Report audio driver capabilities.
+int  far DigPakIdentityString(char far *str); 	// 68Ch -> reports ID string of
+					      	// sound driver. returns string length.
+int  far ReportSample(void); 			// 68Dh -> Report current sample address.
+void far SetCallBackAddress(void far *proc); 	// 68Eh -> Set procedure callback address.
+void far StopSound(void); 			// 68Fh -> Stop current sound from playing.
+void far *far ReportCallbackAddress(void); 	// 691h -> report current callback address.
 void far DigPlayLoop(SNDSTRUC far *sndplay);
 int  far PostAudioPending(SNDSTRUC far *sndplay);
 
@@ -70,9 +70,6 @@ int  far AudioPendingStatus(void);
 #define FULLLEFT 127
 #define FRONTANDCENTER 64
 int far SetStereoPan(int panvalue); // 0-127, 0 full right.
-																		//			 64 full volume both.
-																		//			127 full volume left.
-
 
 #define PCM_8_MONO 0
 #define PCM_8_STEREO 1
