@@ -1,0 +1,81 @@
+83,88c83,89
+< 86B5:0206  DB87			data_23		dw	0DB87h
+< 86B5:0208  DB87			data_24		dw	0DB87h
+< 86B5:020A  DB87			data_25		dw	0DB87h
+< 86B5:020C  DB87			data_26		dw	0DB87h
+< 86B5:020E  DB87					dw	0DB87h
+---
+> 86B5:0206  0000			data_23		dw	0
+> 86B5:0208  0000			data_24		dw	0
+> 86B5:020A  0000			data_25		dw	0
+> 86B5:020C  0000			data_26		dw	0
+> 86B5:020E  0000					dw	0
+523c524
+< 86B5:1B89  2D 0010				sub	ax,10h
+---
+> 86B5:1B89  83 E8 10				sub	ax,10h
+552c553,554
+< 86B5:1BD4  8B E5				mov	sp,bp
+---
+> 86B5:1BD4  90					nop
+> 86B5:1BD5  90					nop
+561c563
+< 86B5:1BDE  2D 0010				sub	ax,10h
+---
+> 86B5:1BDE  83 E8 10				sub	ax,10h
+564c566,567
+< 86B5:1BEA  8B E5				mov	sp,bp
+---
+> 86B5:1BEA  90					nop
+> 86B5:1BEB  90					nop
+706,708d708
+< 86B5:1DFF  3D 0002				cmp	ax,2
+710a711,713
+> 86B5:1DFF  83 F8 02				cmp	ax,2
+735c738
+< 86B5:1E26  3D 0002				cmp	ax,2
+---
+> 86B5:1E26  83 F8 02				cmp	ax,2
+747c750
+< 86B5:1E38  3D 0003				cmp	ax,3
+---
+> 86B5:1E38  83 F8 03				cmp	ax,3
+968c971,972
+< 86B5:1F8D  8B E5				mov	sp,bp
+---
+> 86B5:1F8D  90					nop
+> 86B5:1F8E  90					nop
+1022c1026,1027
+< 86B5:1FD6  8B E5				mov	sp,bp
+---
+> 86B5:1FD6  90					nop
+> 86B5:1FD7  90					nop
+1392c1397
+< 86B5:24B3  05 0004				add	ax,4
+---
+> 86B5:24B3  83 C0 04				add	ax,4
+1394c1399
+< 86B5:24B9  05 0001				add	ax,1
+---
+> 86B5:24B9  83 C0 01				add	ax,1
+1396c1401
+< 86B5:24BF  05 0001				add	ax,1
+---
+> 86B5:24BF  83 C0 01				add	ax,1
+1411c1416,1418
+< 86B5:24DF  3A C4				cmp	al,ah
+---
+> 86B5:24DF  38 E0				cmp	al,ah
+14454,14455d14455
+< 86B5:9CF9  5F					pop	di
+< 86B5:9CFA  5E					pop	si
+< 86B5:9CFB  1F					pop	ds
+< 86B5:9CFC  07					pop	es
+< 86B5:9CFD  8B E5				mov	sp,bp
+---
+> 86B5:9CF9  90					nop
+> 86B5:9CFA  90					nop
+> 86B5:9CFB  5F					pop	di
+> 86B5:9CFC  5E					pop	si
+> 86B5:9CFD  1F					pop	ds
+> 86B5:9CFE  07					pop	es
