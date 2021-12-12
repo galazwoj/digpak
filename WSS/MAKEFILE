@@ -1,9 +1,24 @@
 
-sndsys.com:  start.asm shell.asm soundrv.inc
-	     tasm -zi /m3 shell,sndsys
-	     tasm -zi /m3 start
-	     tlink sndsys + codec + start + wssinit ;
-	     tdstrip -s sndsys
-	     exe2bin sndsys.exe sndsys.com
-	     erase sndsys.exe
+sndsys.com:  start.obj shell.obj codec.obj wssinit.obj
+	link /MAP /TINY shell codec start wssinit, sndsys.com, sndsys;
 
+codec.obj: 	codec.asm   ..\compat.inc 
+	ml /c /Cp /I.. /Focodec   /Flcodec   codec.asm	
+
+shell.obj:     	shell.asm   ..\compat.inc ..\soundrv.inc ..\prologue.mac 
+	ml /c /Cp /I.. /Foshell   /Flshell   shell.asm	
+
+start.obj:     	start.asm   ..\compat.inc ..\soundrv.inc ..\prologue.mac 
+	ml /c /Cp /I.. /Fostart   /Flstart   start.asm	
+
+wssinit.obj: 	wssinit.asm ..\compat.inc 
+	ml /c /Cp /I.. /Fowssinit /Flwssinit wssinit.asm	
+
+clean:
+	-del *.obj
+	-del *.map
+	-del *.lst
+
+cclean:	clean
+	-del *.com
+        

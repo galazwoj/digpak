@@ -1,99 +1,46 @@
-	P386
-        LOCALS                  ;; Enable local labels
+
+		.model tiny, C
+		
+	INCLUDE COMPAT.INC
+  	INCLUDE PROLOGUE.MAC          ;; common prologue
+	INCLUDE SOUNDRV.INC
+
+IFNDEF  ISCOM
+	IFNDEF  ISEXE
+		ISCOM 	EQU 	1
+		ISEXE	EQU	0
+	ELSE
+		ISCOM 	EQU 	0
+	ENDIF
+ENDIF
 
 VERSION_NUMBER equ 340
 
-        IDEAL                   ;; Use Turbo Assembler's IDEAL mode
-	JUMPS
-
-        INCLUDE "PROLOGUE.MAC"          ;; common prologue
-
-ISCOM		equ	1
-ISEXE		equ	0
-
-PLAYBACK	equ	1	;0
-MASSAGE 	equ	2	;1
-FIXEDFREQ	equ	4	;2
-USESTIMER	equ	8	;3
-SHARESTIMER	equ	16	;4 True if supports timer sharing.
-LOOPEND 	equ	32	;5 Supports looping,and pending sounds.
-STEREOPAN	equ	64	;6 supports stereo panning.
-STEREOPLAY	equ	128	;7 Supports stereo playback!
-AUDIORECORD	equ	256	;8 support digital sound recording.
-
-
-Struc	SOUNDSPEC
-
-PLAYADR FARPTR	<>	; Address of sound sample to be played.
-PLAYLEN dw	?	; Length of sound sample to be played.
-ISPLAYING FARPTR <>	 ; Address of our playing sample semephore.
-FREQUENCY dw	?	; Frequency to play it at.
-
-	Ends
-
-Macro	IN_TSR
-	push	ds
-	push	es
-	push	si
-	push	di
-	mov	ax,cs
-	mov	ds,ax
-	mov	es,ax
-	endm
-
-Macro	OUT_TSR
-	pop	di
-	pop	si
-	pop	es
-	pop	ds
-	endm
-
-Macro	WaitSound
-	LOCAL	@@WT
-@@WT:	mov	ax,689h
-	int	66h
-	or	ax,ax
-	jnz	@@WT
-	endm
-
-Macro	Dally
-	jmp	$+2
-	endm
-
-PCM_8_MONO	equ	0
-PCM_8_STEREO	equ	1
-PCM_16_MONO	equ	2
-PCM_16_STEREO	equ	3
-
-KINT	equ	66h
-
-SEGMENT  _TEXT PARA PUBLIC 'CODE'
-        ENDS
-
-	ASSUME	CS: _TEXT, DS: _TEXT, SS: NOTHING, ES: NOTHING
-
-
-SEGMENT _TEXT
+	.code
+	.386
+	assume es:nothing, ss:nothing
 IF	ISCOM
 	org	100h
 ENDIF
 
-EXTRN LoadSound:NEAR
-EXTRN InstallInterupt:NEAR
-EXTRN DeInstallInterupt:NEAR
+	EXTRN LoadSound:NEAR
+	EXTRN InstallInterupt:NEAR
+	EXTRN DeInstallInterupt:NEAR
 
-;
-; CODEC interface functions
-;
+	;
+	; CODEC interface functions
+	;
+	
+	EXTRN PASCAL CODEC_ACK_SingleXfer_IRQ:NEAR
+	EXTRN PASCAL CODEC_SetBlockSize:NEAR
+	EXTRN PASCAL CODEC_SetDACAttenuation:NEAR
+	EXTRN PASCAL CODEC_SetFormat:NEAR
+	EXTRN PASCAL CODEC_StartDACDMA:NEAR
+	EXTRN PASCAL CODEC_StopDACDMA:NEAR
 
-EXTRN CODEC_ACK_SingleXfer_IRQ:NEAR
-EXTRN CODEC_SetBlockSize:NEAR
-EXTRN CODEC_SetDACAttenuation:NEAR
-EXTRN CODEC_SetFormat:NEAR
-EXTRN CODEC_StartDACDMA:NEAR
-
-START:
+start 	PROC NEAR
 	jmp	LoadSound		; Load the digitized sound driver
+start 	ENDP
 	db	"DIGPAK",0,13,10        ; Digitized Sound Package Identity String
 IDENTIFIER:
 ;; =============[*][	     1	       2	 3	    ]
@@ -144,7 +91,7 @@ JumpTable	dw	offset	FUNCT1
 JumpPtr         dw      ?
 _voice_status	dw	0
 CallBacks	dw	0	; Callback to application flag.
-LABEL		CALLBACK	DWORD	     ; Callback address label.
+CallBack	LABEL	DWORD	     ; Callback address label.
 CallLow 	dw	0	; Low word of callback address.
 CallHigh	dw	0	; High word of callback address.
 CallDS		dw	0	; Value of DS register at callback time.
@@ -156,48 +103,13 @@ PlayMode	dw	PCM_8_MONO	; Default play mode is 8 bit PCM.
 
 INDIGPAK	dw	0
 
-;; Set's the DIGPAK semaphore
-Macro	SetSemaphore
-	mov	[cs:INDIGPAK],1
-	endm
-
-;; Clear's the semaphore, and does an IRET
-Macro	ClearSemaphoreIRET
-	mov	[cs:INDIGPAK],0
-	iret
-	endm
-
-Macro	ClearSemaphore
-	mov	[cs:INDIGPAK],0
-	endm
-
-
-;; This macro checks the DPMI compliant FLAG
-;;  If DPMI is on, then the address of the SoundStructure passed is
-;;  in ESI instead of DS:SI.  First make certain it is in the low 1mb
-;;  of address space.  If not, clearsemaphoreiret.  Otherwise set DS:SI
-;;  equal to that address.
-Macro	ConvertDPMI seg,indx
-	LOCAL	@@HOP
-	cmp	[cs:DPMI],0	; In 32 bit DPMI mode?
-	je	@@HOP
-	push	eax		; Save EAX
-	mov	eax,indx	; Get the entire 32 bit flat-model address.
-	shr	eax,4		; leave just the segment portion.
-	mov	seg,ax		 ; place the segment into DS
-	and	indx,0Fh	 ; leave just the offset portion.
-	pop	eax
-@@HOP:
-	endm
-
 ;; Data used by Kernel interupt
 KJUMP	FARPTR	<>		; Address
 OLDIN	FARPTR	<>		; Original interupt vector.
 ID      db      'KERN'          ; 4B45524Eh Interupt identifier string.
 IND     db      'KR'            ; 4B52h indicates a kernel installed interupt.
 
-        public SoundInterupt
-Proc	SoundInterupt far
+SoundInterupt	Proc	 far
 ;;; Usage: DS:SI -> point to sound structure to play.
 ;; FUNCT1  AX = 0688h	 DigPlay
 ;; FUNCT2  AX = 0689h	 Sound Status
@@ -236,7 +148,7 @@ Proc	SoundInterupt far
 	shl	ax,1
 	add	ax,offset JumpTable
 	xchg	ax,bx
-	mov	bx,[cs:bx]
+	mov	bx,cs:[bx]
 	xchg	ax,bx
 	mov	[cs:JumpPtr],ax
 	jmp	[cs:JumpPtr]	;; Near jump will be modified!!
@@ -248,8 +160,7 @@ Proc	SoundInterupt far
 	jmp	[cs:OLDIN.DPTR] 	; Chain to original interrupt vector.
 @@IRET:
 	ClearSemaphoreIRET
-	endp
-
+SoundInterupt	endp
 
 FUNCT1:
 ;;**************************************************************************
@@ -339,7 +250,7 @@ FUNCT5:
 ;;**************************************************************************
 	mov	ax,(PLAYBACK OR STEREOPLAY)
         mov     bx,cs
-	lea	cx,[IDENTIFIER]
+	xlea	cx,[IDENTIFIER]
 	ClearSemaphoreIRET
 FUNCT6:
 ;;**************************************************************************
@@ -423,7 +334,7 @@ FUNCT8:
 ;:		terminated.
 ;;**************************************************************************
 	mov	[cs:PENDING],0	; Turn pending flag OFF when stop-sound called.
-	mov	[word cs:LOOPING],0
+	mov	word ptr [ cs:LOOPING],0
 	call	StopSound
 	ClearSemaphoreIRET
 FUNCT9:
@@ -476,8 +387,8 @@ FUNCTB:
 ;;		DeInstall code.  Not to be called by an application program!
 ;;**************************************************************************
 	mov	[cs:CallBacks],0	;
-	mov	[word cs:CallBack],0
-	mov	[word cs:CallBack+2],0
+	mov	word ptr [cs:CallBack],0
+	mov	word ptr [cs:CallBack+2],0
 	ClearSemaphoreIRET
 FUNCTC:
 ;;**************************************************************************
@@ -513,7 +424,7 @@ FUNCTD:
 	ConvertDPMI ds,esi
 	push	cs
 	pop	es
-	lea	di,[LOOPSND]
+	xlea	di,[LOOPSND]
 	mov	cx,SIZE LOOPSND
 	rep	movsb
 	mov	ax,068Fh	; Stop any currently playing sound.
@@ -523,14 +434,14 @@ FUNCTD:
 	mov	ds,ax
 	mov	dx,ax		;
 	mov	ax,068Eh
-	lea	bx,[LoopBack]	;
+	xlea	bx,[LoopBack]	;
 	int	66h		; Set loop callback.
 	PopAll
 	push	cs
 	pop	ds
-	lea	si,[LOOPSND]
-	mov	[word cs:LOOPSOUND],si
-	mov	[word cs:LOOPSOUND+2],ds
+	xlea	si,[LOOPSND]
+	mov	word ptr [cs:LOOPSOUND],si
+	mov	word ptr [cs:LOOPSOUND+2],ds
 	mov	[cs:FROMLOOP],1 ; Set from looping semephore
 	mov	ax,068Bh	; Do FUNCT4
 	jmp	FUNCT4		; Do a DigPlay2
@@ -565,14 +476,14 @@ FUNCTE:
 
 	push	cs
 	pop	es
-	lea	di,[PENDSND]	; Pending sound.
+	xlea	di,[PENDSND]	; Pending sound.
 	mov	cx,SIZE PENDSND
 	rep	movsb
 	mov	[cs:PENDING],1
 	mov	[cs:CallBacks],1
-	mov	[word cs:CallBack],offset PlayPending
-	mov	[word cs:CallBack+2],cs
-	mov	[word cs:CallDS],cs
+	mov	word ptr [cs:CallBack],offset PlayPending
+	mov	word ptr [cs:CallBack+2],cs
+	mov	word ptr [cs:CallDS],cs
 
 	pop	di
 	pop	es
@@ -591,9 +502,9 @@ FUNCTF:
 	cli		; Clear interrupts while we make this determination.
 	mov	ax,[cs:_voice_status]
 	or	ax,ax		; Currently playing a sound?
-	jnz	@@POST		; yes->try to post pending.
+	jnz	@@POST1		; yes->try to post pending.
 	ClearSemaphoreIRET
-@@POST: cmp	[cs:PENDING],1	; Have a sound pending?
+@@POST1:cmp	[cs:PENDING],1	; Have a sound pending?
 	je	@@PEND		; yes, return pending status.
 	mov	ax,1		; Sound is playing, but no sound is pending.
 	ClearSemaphoreIRET
@@ -642,8 +553,8 @@ FUNCT12:
 ;;
 ;;**************************************************************************
 	mov	dx,cs		; Code segment.
-	lea	ax,[PENDING]	; Address of pending flag.
-	lea	bx,[INDIGPAK]	; Address of semaphore address.
+	xlea	ax,[PENDING]	; Address of pending flag.
+	xlea	bx,[INDIGPAK]	; Address of semaphore address.
 	ClearSemaphoreIRET
 
 FUNCT13:
@@ -738,28 +649,26 @@ FUNCT19:
 	mov	[cs:DPMI],dx	; Set it.
 	ClearSemaphoreIRET
 
-Macro  GET20BIT
-       PUSH   CX
-       MOV    CL,4
-       ROL    DX,CL
-       MOV    CX,DX
-       AND    DX,0FH
-       AND    CX,0FFF0H
-       ADD    AX,CX
-       ADC    DX,0
-       POP    CX
+GET20BIT	Macro  
+       	PUSH   CX
+       	MOV    CL,4
+       	ROL    DX,CL
+       	MOV    CX,DX
+       	AND    DX,0FH
+       	AND    CX,0FFF0H
+	nope
+       	ADD    AX,CX
+       	ADC    DX,0
+       	POP    CX
        endm
 
-Proc	CheckBoundary	near
-	ARG	SOURCE:DWORD,SLEN:WORD
-	PENTER	0
-
-	mov	ax,[word SOURCE]
-	mov	dx,[word SOURCE+2]
+CheckBoundary Proc near C SOURCE:DWORD,SLEN:WORD
+	mov	ax,word ptr [SOURCE]
+	mov	dx,word ptr [SOURCE+2]
 	GET20BIT		; Into 20 bit mode.
 	mov	bx,dx		; Save DMA page.
-	mov	ax,[word SOURCE]
-	mov	dx,[word SOURCE+2]
+	mov	ax,word ptr [SOURCE]
+	mov	dx,word ptr [SOURCE+2]
 	add	ax,[SLEN]		; Point to end.
 	GET20BIT
 	mov	ax,1		; Default is OK.
@@ -767,34 +676,33 @@ Proc	CheckBoundary	near
 	je	@@OK
 	xor	ax,ax		; Didn't work.
 @@OK:
-	PLEAVE
+	nope
+	nope
 	ret
-	endp
+CheckBoundary endp
 
-
-Proc	PlayPending	far
+PlayPending Proc	far
 	cmp	[PENDING],1  ; Pending?
 	jne	@@not
 	mov	[PENDING],0
 	mov	[cs:CallBacks],0	; No longer have one pending..
-	lea	si,[PENDSND]	; Address of pending sound.
+	xlea	si,[PENDSND]	; Address of pending sound.
 	call	DoSoundPlay	; Do a sound play call.
 	ret
 @@not:
 	mov	[cs:CallBacks],0	; Disable callbacks.
 	ret
-	endp
+PlayPending endp
 
-Proc	DoSoundPlay	near
+DoSoundPlay Proc	near
 	PushCREGS
 	call	SetAudio
 	call	PlaySound
 	PopCREGS
 	ret
-	endp
+DoSoundPlay endp
 
-
-Proc	CheckCallBack	near
+CheckCallBack Proc	near
 	cmp	[cs:CallBacks],0	; Callbacks enabled?
 	je	@@GOUT		; no, exit.
 	PushAll 		; Save all registers
@@ -803,7 +711,7 @@ Proc	CheckCallBack	near
 	PopAll			; Restore all registers.
 @@GOUT:
 	ret
-	endp
+CheckCallBack endp
 
 FROMLOOP	dw	0
 SAVECALLBACK	dd	?	; Saved callback address.
@@ -811,40 +719,40 @@ SAVECALLDS	dw	?
 LOOPING 	dw	0	; True if we were looping.
 
 LOOPSOUND	dd	?
-LOOPSND 	SOUNDSPEC	<>
+LOOPSND 	SOUNDSPEC <>
 
 PENDING 	dw	0	; True, when second sound sample is pending.
 PENDSND         SOUNDSPEC <>    ; Sound structure of pending sound.
 
-Proc	LoopBack	far
+LoopBack Proc	far
 	mov	ax,068Bh	; Play preformated data.
 	mov	[cs:FROMLOOP],1
 	lds	si,[LOOPSOUND]	;
 	int	66h		; Start playing the sound again.
 	ret
-	endp
+LoopBack endp
 
-Proc    SetAudio        near
-	mov	[ds:(SOUNDSPEC ptr si).ISPLAYING.XPTR.POFF],offset _voice_status
-	mov	[ds:(SOUNDSPEC ptr si).ISPLAYING.XPTR.PSEG],cs
-	les	bx,[ds:(SOUNDSPEC ptr si).PLAYADR.DPTR]
-	mov	cx,[ds:(SOUNDSPEC ptr si).PLAYLEN]
-	mov	dx,[ds:(SOUNDSPEC si).FREQUENCY]
+SetAudio Proc    near
+	mov	ds:[si].SOUNDSPEC.ISPLAYING.XPTR.POFF,offset _voice_status
+	mov	ds:[si].SOUNDSPEC.ISPLAYING.XPTR.PSEG,cs
+	les	bx,ds:[si].SOUNDSPEC.PLAYADR.DPTR
+	mov	cx,ds:[si].SOUNDSPEC.PLAYLEN
+	mov	dx,ds:[si].SOUNDSPEC.FREQUENCY
 	push	cs
 	pop	ds		; DS = Code group.
 	ret
-	endp
+SetAudio endp
 
-Proc	EndLoop near
+EndLoop Proc	near
 	mov	[cs:CallBacks],0	;
-	mov	[word cs:CallBack],0
-	mov	[word cs:CallBack+2],0
-	mov	[word cs:LOOPING],0
+	mov	word ptr [cs:CallBack],0
+	mov	word ptr [cs:CallBack+2],0
+	mov	word ptr [cs:LOOPING],0
 	call	StopSound
 	ret
-	endp
+EndLoop	endp
 
-Proc	CompleteSound	near
+CompleteSound Proc	near
 	cmp	[cs:FROMLOOP],1    ; In loop callback?
 	jne	@@YES
 	call	EndLoop 	; don't wait for loop to complete, end it!
@@ -852,21 +760,15 @@ Proc	CompleteSound	near
 @@WT:	cmp	[cs:_voice_status],0	 ; Wait until last sound completed.
 	jne	@@WT
 	ret
-	endp
-
+CompleteSound	endp
 
 SMALL_MODEL     equ     1
 
-Macro	CPROC	name		; Macro to establish a C callable procedure.
-	public	_&name
 IF	SMALL_MODEL
-Proc	_&name	near
+CPROC equ	<Proc near C>
 ELSE
-Proc	_&name	far
+CPROC equ	<Proc far  C>
 ENDIF
-	endm
-
-
 
 ORG_INT_ADDX    dd      ?       ; Original IRQ address.
 
@@ -881,8 +783,8 @@ LEN_L_TO_DMA        DW       ?
 LEN_H_TO_DMA        DW       ?
 LAST_DMA_OFFSET     DW       ?
 
-DMA_VOICE_IN     EQU    45H
-DMA_VOICE_OUT    EQU    49H
+DMA_VOICE_IN        EQU    45H
+DMA_VOICE_OUT       EQU    49H
 
 ;--------------------------------------------
 ; entry: DH = dma mode                      :
@@ -898,144 +800,114 @@ DMA_MODE_REG	    EQU    0BH
 DMA_FF_REG	    EQU    0CH
 DMA_PAGE_REG	    EQU    83H
 
-Proc	PROG_DMA	near
+PROG_DMA Proc		near
+       	PUSH   	BX
+       	MOV    	BX,AX
+       	MOV    	AL,5
+       	OUT    	DMA_MASK_REG,AL
+       	SUB    	AL,AL
+       	OUT    	DMA_FF_REG,AL
+       	MOV    	AL,DH
+       	OUT    	DMA_MODE_REG,AL
+       	MOV    	AL,BL
+       	OUT    	DMA_ADDX_REG,AL
+       	MOV    	AL,BH
+       	OUT    	DMA_ADDX_REG,AL
+       	MOV    	AL,CL
+       	OUT    	DMA_COUNT_REG,AL
+       	MOV    	AL,CH
+       	OUT    	DMA_COUNT_REG,AL
+       	MOV    	AL,DL
+       	OUT   	DMA_PAGE_REG,AL
+       	MOV    	AL,1
+      	OUT    	DMA_MASK_REG,AL
+       	POP    	BX
+       	RET
+PROG_DMA       endp
 
-       PUSH   BX
-
-       MOV    BX,AX
-
-       MOV    AL,5
-       OUT    DMA_MASK_REG,AL
-
-       SUB    AL,AL
-       OUT    DMA_FF_REG,AL
-
-       MOV    AL,DH
-       OUT    DMA_MODE_REG,AL
-
-       MOV    AL,BL
-       OUT    DMA_ADDX_REG,AL
-
-       MOV    AL,BH
-       OUT    DMA_ADDX_REG,AL
-
-       MOV    AL,CL
-       OUT    DMA_COUNT_REG,AL
-
-       MOV    AL,CH
-       OUT    DMA_COUNT_REG,AL
-
-       MOV    AL,DL
-       OUT    DMA_PAGE_REG,AL
-
-       MOV    AL,1
-       OUT    DMA_MASK_REG,AL
-
-       POP    BX
-       RET
-       endp
-
-Proc	CALC_20BIT_ADDX 	near
-       PUSH   CX
-       MOV    CL,4
-       ROL    DX,CL
-       MOV    CX,DX
-       AND    DX,0FH
-       AND    CX,0FFF0H
-       ADD    AX,CX
-       ADC    DX,0
-       POP    CX
-       RET
-       endp
-
+CALC_20BIT_ADDX Proc		near
+       	PUSH   	CX
+       	MOV    	CL,4
+       	ROL    	DX,CL
+       	MOV    	CX,DX
+      	AND    	DX,0FH
+       	AND    	CX,0FFF0H
+	nope
+       	ADD    	AX,CX
+       	ADC    	DX,0
+       	POP    	CX
+       	RET
+CALC_20BIT_ADDX  endp
 
 ;-------------------------------------------------
 ; entry: AL = INTERRUPT NUM                      |
 ;        DX = new vector ofs, seg is alway CS    |
 ;        BX = offset of store buffer             :
 ;-------------------------------------------------
-Proc	SETUP_INTERRUPT near
-       PUSH   BX
-       PUSH   CX
-       PUSH   DX
-
-       CLI
-
-       MOV    CL,AL                    ; preserve interrupt number for use
-
-       ADD    AL,8                     ; calculate interrupt vector addx
-       CBW
-       SHL    AL,1
-       SHL    AL,1
-       MOV    DI,AX
-
-       PUSH   ES                       ; setup and preserve interrupt
-
-       SUB    AX,AX
-       MOV    ES,AX
-       MOV    AX,[ES:DI]
-       MOV    [BX],AX
-       MOV    [ES:DI],DX
-
-       MOV    AX,[ES:DI+2]
-       MOV    [BX+2],AX
-       MOV    [ES:DI+2],CS
-
-       POP    ES
-
-       MOV    AH,1                     ; enable interrupt control mask-bit
-       SHL    AH,CL
-
-       NOT    AH
-       IN     AL,21H
-       AND    AL,AH
-       OUT    21H,AL
-       STI
-       POP    DX
-       POP    CX
-       POP    BX
-       RET
-       endp
+SETUP_INTERRUPT Proc	near
+       	PUSH   	BX
+       	PUSH   	CX
+       	PUSH   	DX
+       	CLI
+       	MOV    	CL,AL                    ; preserve interrupt number for use
+       	ADD    	AL,8                     ; calculate interrupt vector addx
+       	CBW
+       	SHL    	AL,1
+       	SHL    	AL,1
+       	MOV    	DI,AX
+       	PUSH   	ES                       ; setup and preserve interrupt
+       	SUB    	AX,AX
+       	MOV    	ES,AX
+       	MOV    	AX,es:[di]
+       	MOV    	[BX],AX
+      	MOV    	es:[di],DX
+       	MOV    	AX,es:[di+2]
+       	MOV    	[BX+2],AX
+       	MOV    	es:[di+2],CS
+       	POP    	ES
+       	MOV    	AH,1                     ; enable interrupt control mask-bit
+       	SHL    	AH,CL
+       	NOT    	AH
+       	IN     	AL,21H
+       	AND    	AL,AH
+       	OUT    	21H,AL
+       	STI
+       	POP    	DX
+       	POP    	CX
+       	POP    	BX
+       	RET
+SETUP_INTERRUPT       endp
 
 ;-------------------------------------------------
 ; entry: AL = INTERRUPT NUM                      |
 ;        BX = offset to stored addx              |
 ;-------------------------------------------------
-Proc	RESTORE_INTERRUPT	near
+RESTORE_INTERRUPT Proc	near
+       	CLI
+       	MOV    	CL,AL
+       	ADD    	AL,8                      ; calculate interrupt vector addx
+       	CBW
+       	SHL    	AL,1
+       	SHL    	AL,1
+       	MOV    	DI,AX
+       	PUSH   	ES                       ; restore interrupt vector
+       	SUB    	AX,AX
+       	MOV    	ES,AX
+       	MOV    	AX,[BX]
+       	MOV    	es:[di],AX
+       	MOV    	AX,[BX+2]
+       	MOV    	es:[di+2],AX
+       	POP    	ES
+       	MOV    	AH,1
+       	SHL    	AH,CL
+       	IN     	AL,21H
+       	OR     	AL,AH
+       	OUT    	21H,AL
+       	STI
+       	RET
+RESTORE_INTERRUPT       endp
 
-       CLI
-
-       MOV    CL,AL
-
-       ADD    AL,8                      ; calculate interrupt vector addx
-       CBW
-       SHL    AL,1
-       SHL    AL,1
-       MOV    DI,AX
-
-       PUSH   ES                       ; restore interrupt vector
-       SUB    AX,AX
-       MOV    ES,AX
-       MOV    AX,[BX]
-       MOV    [ES:DI],AX
-
-       MOV    AX,[BX+2]
-       MOV    [ES:DI+2],AX
-
-       POP    ES
-
-       MOV    AH,1
-       SHL    AH,CL
-
-       IN     AL,21H
-       OR     AL,AH
-       OUT    21H,AL
-
-       STI
-       RET
-       endp
-
-Proc	DMA_OUT_INTR	far
+DMA_OUT_INTR Proc	far
 	SetSemaphore
 	push	ax
 	push	dx
@@ -1067,16 +939,14 @@ Proc	DMA_OUT_INTR	far
         OUT     20H,AL
         pop	ax
 	ClearSemaphoreIRET
-        endp
+DMA_OUT_INTR        endp
 
 DSP_DMA dw	1
 
-Proc	DMAC_word_cnt near
+DMAC_word_cnt Proc	near
 	push	bx
-
 	pushf
 	cli
-
 	mov dx,[cs:DSP_DMA]
 	shl dx,1
 	add dx,1
@@ -1085,15 +955,12 @@ Proc	DMAC_word_cnt near
 	in al,dx
 	mov ah,al
 	mov al,bl
-
 	popf
-
 	pop	bx
 	ret
-	ENDP
+DMAC_word_cnt	ENDP
 
-
-Macro	INISR
+INISR 	Macro
 	push	es		; Save registers that are used
 	push	ds
 	push	di
@@ -1106,7 +973,7 @@ Macro	INISR
 	mov	ds,ax		; Establish data addressability.
 	endm
 
-Macro	OUTISR
+OUTISR	Macro	
 	pop	bx
 	pop	cx
 	pop	si
@@ -1116,43 +983,34 @@ Macro	OUTISR
 	endm
 
 ;; In an ISR, so all registers need to be saved!! (AX,DX, allready saved though.
-Proc	DMA_OUT_TRANSFER	near
+DMA_OUT_TRANSFER Proc	near
 	INISR
-
-	MOV    CX,-1			; get current page end address
-
-	CMP    [PAGE_TO_DMA],0		  ; last page to dma ?
-	JNZ    @@DOT10			  ; no, skip
-
+	MOV    	CX,-1			; get current page end address
+	CMP    	[PAGE_TO_DMA],0		  ; last page to dma ?
+	JNZ    	@@DOT10			  ; no, skip
 	INC	[PAGE_TO_DMA]
 	MOV	CX,[LAST_DMA_OFFSET]	   ; get end addx
-
 @@DOT10:
-       SUB    CX,[DMA_CURRENT_ADDX]	 ; calcutate current page addx
-       MOV    [DMA_CURRENT_COUNT],CX
-       INC    CX
-       JZ     @@DOT20
-
-       SUB    [LEN_L_TO_DMA],CX
-       SBB    [LEN_H_TO_DMA],0
-       JMP    SHORT @@DOT30
-
+       	SUB    	CX,[DMA_CURRENT_ADDX]	 ; calcutate current page addx
+       	MOV    	[DMA_CURRENT_COUNT],CX
+       	INC    	CX
+       	JZ     	@@DOT20
+       	SUB    	[LEN_L_TO_DMA],CX
+       	SBB    	[LEN_H_TO_DMA],0
+       	JMP    	SHORT @@DOT30
 @@DOT20:
-       DEC      [LEN_H_TO_DMA]
-
+       	DEC     [LEN_H_TO_DMA]
 @@DOT30:
         MOV     DH,DMA_VOICE_OUT
         cmp	[cs:RecordMode],1	; In recording mode?
         jne	@@NOT
         mov	DH,DMA_VOICE_IN
 @@NOT:
-        MOV      DL,[DMA_CURRENT_PAGE]
-        MOV      AX,[DMA_CURRENT_ADDX]
-        MOV      CX,[DMA_CURRENT_COUNT]
-        CALL     PROG_DMA
-
-        MOV      AX,[DMA_CURRENT_COUNT]
-
+        MOV     DL,[DMA_CURRENT_PAGE]
+        MOV     AX,[DMA_CURRENT_ADDX]
+        MOV     CX,[DMA_CURRENT_COUNT]
+        CALL    PROG_DMA
+        MOV     AX,[DMA_CURRENT_COUNT]
         ;
         ; WARNING!  This assumes the current format of the bit
         ;           alignment for mono, stereo, 16-bit mono,
@@ -1161,142 +1019,106 @@ Proc	DMA_OUT_TRANSFER	near
 
         mov      cx,[PlayMode]
         shr      ax, cl
-
         push     ax
         call     CODEC_SetBlockSize
-
         call     CODEC_StartDACDMA
-
         DEC      [PAGE_TO_DMA]
         INC      [DMA_CURRENT_PAGE]
         MOV      [DMA_CURRENT_ADDX],0
-
 @@DOT90:
 	OUTISR			; Restore registers for ISR routines.
 	RET
-	ENDP
+DMA_OUT_TRANSFER	ENDP
 
-
-
-Proc	END_DMA_TRANSFER	near
-       INISR
-       MOV    AL,5
-       OUT    DMA_MASK_REG,AL
-       MOV    AL,[byte _intr_num]
-       lea    BX,[ORG_INT_ADDX]
-       CALL   RESTORE_INTERRUPT
-       MOV    [_voice_status],0
-
-       call     CODEC_ACK_SingleXfer_IRQ
-
+END_DMA_TRANSFER Proc	near
+       	INISR
+       	MOV    	AL,5
+       	OUT    	DMA_MASK_REG,AL
+       	MOV    	AL,[byte ptr _intr_num]
+       	xlea    	BX,[ORG_INT_ADDX]
+       	CALL   	RESTORE_INTERRUPT
+       	MOV    	[_voice_status],0
+       	call    CODEC_ACK_SingleXfer_IRQ
 ;; Do Callbacks if ncessary.
 	call	DoCallBacks
-
-       OUTISR
-       RET
-       endp
+       	OUTISR
+       	RET
+END_DMA_TRANSFER     	endp
                  
 SPEAKERSTATE	db	-1
 
-Proc	ON_OFF_SPEAKER	near
+ON_OFF_SPEAKER Proc	near
 	cmp	al,[SPEAKERSTATE]
 	je	@@DONE
 	PushAll
-
 	mov	[SPEAKERSTATE],al
-
 	PopAll
 @@DONE:
-       SUB	AX,AX			 ; inidcate no error
-       RET
-       endp
+       	SUB	AX,AX			 ; inidcate no error
+       	RET
+ON_OFF_SPEAKER 	endp
 
-
-Proc	PlaySound	near
+PlaySound Proc	near
 ;; CX ->number of bytes in sound sample.
 ;; ES:BX -> far address of sound sample to be played.
 ;; DX ->rate to play at.
-
 	mov	al,1		; Speaker needs to be ON.
 	cmp	[RecordMode],1	; Recording?
 	jne	@@SET
 	xor	al,al		; Speaker OFF while recording.
 @@SET:	call	ON_OFF_SPEAKER	; Set speaker state.
-
-
-@@WAIT: CMP    [_voice_status],0
-	jne    @@WAIT		; Wait until last sound has completed playing.
+@@WAIT: CMP    	[_voice_status],0
+	jne    	@@WAIT		; Wait until last sound has completed playing.
 @@OV10:
-        MOV    [_voice_status],1
-
+        MOV    	[_voice_status],1
         push    dx
         push    [PlayMode]
         call    CODEC_SetFormat
         push    0505h
         call    CODEC_SetDACAttenuation
-
         push    es
         push    bx
-
-        MOV	AL,[byte _intr_num]
-        lea	dx,[DMA_OUT_INTR]
-        lea	BX,[ORG_INT_ADDX]
+        MOV	AL,[byte ptr _intr_num]
+        xlea	dx,[DMA_OUT_INTR]
+        xlea	BX,[ORG_INT_ADDX]
         CALL	SETUP_INTERRUPT
-
         pop     ax
-        pop     dx
-
+	pop     dx
         CALL   CALC_20BIT_ADDX
-
         MOV    [DMA_CURRENT_PAGE],DL
         MOV    [DMA_CURRENT_ADDX],AX
-
         MOV    [LEN_L_TO_DMA],CX
         MOV    [LEN_H_TO_DMA],0
-
         ADD    AX, CX
         ADC    DL,0
         SUB    AX,1
         SBB    DL,0
-
         MOV    [LAST_DMA_OFFSET],AX
         SUB    DL,[DMA_CURRENT_PAGE]
         MOV    [PAGE_TO_DMA],DL
-
         CALL   DMA_OUT_TRANSFER
-
         SUB    AX,AX
-
 	ret
-	endp
+PlaySound	endp
 
-EXTRN CODEC_StopDACDMA:NEAR
-
-Proc	StopSound	near
-
+StopSound Proc		near
         push    ds
         push    cs
         pop     ds
-
         mov     ax, 1
         CMP     [_voice_status], 0
         JZ      @@SS90
-
         call    CODEC_StopDACDMA
         CALL    END_DMA_TRANSFER
-
 	call	CheckCallBack	; Check callbacks.
 	mov	[_voice_status],0	; No longer playing.
-
 	SUB    AX,AX
-
 @@SS90:
         pop     ds
 	ret
-	endp
+StopSound endp
 
-
-Proc	DoCallBacks	near
+DoCallBacks Proc	near
 	cmp	[cs:CallBacks],0
 	je	@@GOUT
 	PushAll 		; Save all registers
@@ -1304,9 +1126,6 @@ Proc	DoCallBacks	near
 	call	[cs:CallBack]	; far call to application.
 	PopAll			; Restore all registers.
 @@GOUT: ret
-	endp
+DoCallBacks endp
 
-	ENDS
-
-	end	START
-
+	end	start
