@@ -123,6 +123,10 @@ SPKR            equ 1
 SPKR            equ 1
                 ENDIF
 
+                IFDEF CMS
+SPKR            equ 1
+                ENDIF
+
 NUM_CHANS       equ 16                  ;# of MIDI channels
 
                 .CODE
@@ -301,11 +305,12 @@ active_notes    db NUM_CHANS dup (?)
 lock_status     db NUM_CHANS dup (?)    ;bit 7: locked
                                         ;    6: lock-protected           
 init_OK         dw 0
+IFDEF GRAVIS
 chk_hook_str    db 'ULTRAMID',0              ;Stamp to find resident GF1 O.S.
 gf1hook        	label   dword   ; The GF1 hook for all AIL calls.
 hookoff     	dw      0
 hookseg     	dw      0
-
+ENDIF
 find_seq        	CPROTO XMID:FAR PTR,SeqNum:WORD   
 rewind_seq      	CPROTO Sequence:WORD 
 flush_channel_notes 	CPROTO Chan:WORD     
@@ -638,7 +643,7 @@ __for_channel:  mov bx,di
                 mov al,BYTE PTR [si].state_table.chan_controls[bx]
                 cmp al,-1
                 je __next_channel
-                INVOKE XMIDI_control,DS::si,di,ctrl,ax
+                INVOKE XMIDI_control,ds::si,di,ctrl,ax
 __next_channel: inc di
                 cmp di,NUM_CHANS
                 jne __for_channel
@@ -998,7 +1003,7 @@ __calc_VLN:     mov cl,es:[di]
 __exit:         mov ax,event_len        ;return total event length
                 ret
 
-__end_sequence: INVOKE reset_sequence,DS::si
+__end_sequence: INVOKE reset_sequence,ds::si
                 mov [si].state_table.status,SEQ_DONE
                 cmp [si].state_table.post_release,0 ;release-on-completion pending?
                 je __exit              
@@ -1089,7 +1094,7 @@ __calc_VLN:     mov cl,es:[di]
                 mov event_len,cx        ;to determine overall event length
 
                 IFDEF send_MIDI_sysex
-                INVOKE send_MIDI_sysex,ES::di,event_type,ax
+                INVOKE send_MIDI_sysex,es::di,event_type,ax
                 ENDIF
 
                 mov ax,event_len        ;return total event length
@@ -1194,13 +1199,17 @@ serve_driver    CPROC  USES DS SI DI                   ;Periodic driver service 
                 cld
 
                 cmp service_active,0    ;OK to interrupt foreground process?
+IFDEF GRAVIS
                 jne __served
 		mov ax,TSR_SEM_ENTER
 		call gf1hook
 		or ax, ax
 		je __served
 		jmp __do_service
-
+ELSE
+		je  __do_service
+		jmp __served		;no
+ENDIF
 __new_beat:     sub ax,[si].state_table.time_per_beat_l
                 sbb dx,[si].state_table.time_per_beat_h
                 inc [si].state_table.beat_count
@@ -1271,9 +1280,10 @@ __next_seq:     dec seqcnt
 __end_seqs:     IFDEF serve_synth       ;update synthesizer hardware regs and
                 INVOKE serve_synth        ;time-variant effects, if applicable
                 ENDIF
-
+IFDEF GRAVIS
 		mov ax, TSR_SEM_LEAVE
 		call gf1hook
+ENDIF
                 dec service_active
 __served:       ret
 
@@ -1353,21 +1363,21 @@ __get_status:   mov al,es:[di]          ;AL = channel/status
                 cmp ax,0a0h
                 jae __send_event
 
-                INVOKE XMIDI_note_on,DS::si
+                INVOKE XMIDI_note_on,ds::si
                 mov di,ax
                 jmp __end_event
 
 __sys:          cmp bl,0fh         
                 je __meta
-                INVOKE XMIDI_sysex,DS::si
+                INVOKE XMIDI_sysex,ds::si
                 mov di,ax
                 jmp __end_event
 
-__meta:         INVOKE XMIDI_meta,DS::si
+__meta:         INVOKE XMIDI_meta,ds::si
                 mov di,ax
                 jmp __end_event
 
-__ctrl_change:  INVOKE XMIDI_control,DS::si,bx,cx,dx
+__ctrl_change:  INVOKE XMIDI_control,ds::si,bx,cx,dx
                 mov di,3
                 jmp __end_event
 
@@ -1447,7 +1457,7 @@ __add_vol:      add ax,cx
                 jle __set_vol
 __end_vol:      mov ax,bx
 __set_vol:      mov [si].state_table.vol_percent,ax
-                INVOKE XMIDI_volume,DS::si
+                INVOKE XMIDI_volume,ds::si
 __end_v_grad:   jmp __next_seq
 
 serve_driver    ENDP
@@ -1457,10 +1467,10 @@ init_driver     CPROC USES DS SI DI H:WORD,IO_ADDR:WORD,IRQ:WORD,DMA:WORD,DRQ:WO
                 pushf
                 cli
                 cld
-
+IFDEF GRAVIS
 		mov ax, TSR_APP_START
 		call gf1hook
-
+ENDIF
                 mov service_active,0
                 mov sequence_count,0
 
@@ -1596,10 +1606,10 @@ __shutdown:     INVOKE reset_synth
                 IFDEF shutdown_synth
                 INVOKE shutdown_synth
                 ENDIF
-
+IFDEF GRAVIS
 		mov ax, TSR_APP_END
 		call gf1hook
-
+ENDIF
                 mov init_OK,0
 
 __exit:         POP_F
@@ -1710,7 +1720,7 @@ __not_RBRN:     cmp WORD PTR es:[di],'VE'        ;EVNT = MIDI event list
                 jne __log_chunk         ;(mandatory; must be last chunk in
                 cmp WORD PTR es:[di+2],'TN'      ;sequence)
                 jne __log_chunk
-
+IFDEF GRAVIS
 ; ES:DI Is a pointer to the Xmidi event list.
 ; Now send down all programs in this midi event sequence.
 		push	es
@@ -1719,7 +1729,7 @@ __not_RBRN:     cmp WORD PTR es:[di],'VE'        ;EVNT = MIDI event list
 		call    cs:gf1hook
 		pop	di
 		pop	es
-
+ENDIF
                 mov ax,handle
                 mov [si].state_table.seq_handle,ax
                 mov WORD PTR [si].state_table.EVNT,di
@@ -1794,10 +1804,10 @@ __start:        INVOKE rewind_seq,[Sequence]
                 ADD_PTR 8,0,dx,ax
                 mov WORD PTR [si].state_table.EVNT_ptr,ax
                 mov WORD PTR [si].state_table.EVNT_ptr+2,dx
-
+IFDEF GRAVIS
 		mov 	ax,TSR_START_SEQUENCE
 		call    cs:gf1hook
-
+ENDIF
                 mov [si].state_table.status,SEQ_PLAYING
                 mov [si].state_table.seq_started,1
 
@@ -1822,8 +1832,8 @@ stop_seq        CPROC USES DS SI DI H:WORD,Sequence:WORD
                 cmp [si].state_table.status,SEQ_PLAYING
                 jne __exit
 
-                INVOKE flush_note_queue,DS::si
-                INVOKE reset_sequence,DS::si
+                INVOKE flush_note_queue,ds::si
+                INVOKE reset_sequence,ds::si
 
                 mov [si].state_table.status,SEQ_STOPPED
 
@@ -1851,7 +1861,7 @@ resume_seq      CPROC USES DS SI DI H:WORD,Sequence:WORD
                 cmp [si].state_table.seq_started,0
                 je __exit
 
-                INVOKE restore_sequence,DS::si
+                INVOKE restore_sequence,ds::si
 
                 mov [si].state_table.status,SEQ_PLAYING
                                            
@@ -1993,7 +2003,7 @@ __marker_found: mov ax,es:[di+2]        ;else get offset of target in EVNT
                 mov WORD PTR [si].state_table.EVNT_ptr,di
                 mov WORD PTR [si].state_table.EVNT_ptr+2,es
                 mov [si].state_table.interval_cnt,0
-                INVOKE flush_note_queue,DS::si
+                INVOKE flush_note_queue,ds::si
 
                 IF BRANCH_EXIT          ;cancel all FOR...NEXT loops if
                 mov cx,FOR_NEST         ;BRANCH_EXIT is TRUE
@@ -2123,7 +2133,7 @@ __nonzero:      mov [si].state_table.vol_period_l,ax
                 jmp __exit
 
 __immed:        mov [si].state_table.vol_percent,ax
-                INVOKE XMIDI_volume,DS::si
+                INVOKE XMIDI_volume,ds::si
 
 __exit:         POP_F
                 ret
@@ -2176,7 +2186,7 @@ set_control_val CPROC USES DS SI DI H:WORD,Sequence:WORD,Chan:WORD,Control:WORD,
 
                 mov ax,[Chan]
                 dec ax
-                INVOKE XMIDI_control,DS::si,ax,[Control],[Val]
+                INVOKE XMIDI_control,ds::si,ax,[Control],[Val]
 
 __exit:         POP_F
                 ret
