@@ -1,0 +1,75 @@
+190c190
+< 86B5:0362  0D 0040				or	ax,40h
+---
+> 86B5:0362  83 C8 40				or	ax,40h
+406c406
+< 86B5:0568  3D 0040				cmp	ax,40h
+---
+> 86B5:0568  83 F8 40				cmp	ax,40h
+412c412
+< 86B5:0573  05 003F				add	ax,3Fh
+---
+> 86B5:0573  83 C0 3F				add	ax,3Fh
+422c422
+< 86B5:0582  05 003F				add	ax,3Fh
+---
+> 86B5:0582  83 C0 3F				add	ax,3Fh
+586c586,587
+< 86B5:06E9  81 E1 FFF0				and	cx,0FFF0h
+---
+> 86B5:06E9  83 E1 F0				and	cx,0FFF0h
+> 86B5:06EC  90					nop
+601c602,603
+< 86B5:0708  81 E1 FFF0				and	cx,0FFF0h
+---
+> 86B5:0708  83 E1 F0				and	cx,0FFF0h
+> 86B5:070B  90					nop
+606c608
+< 86B5:0715  3A DA				cmp	bl,dl
+---
+> 86B5:0715  38 D3				cmp	bl,dl
+612c614,615
+< 86B5:071D  8B E5				mov	sp,bp
+---
+> 86B5:071D  90					nop
+> 86B5:071E  90					nop
+1211c1214
+< 86B5:0AA1  05 0003				add	ax,3
+---
+> 86B5:0AA1  83 C0 03				add	ax,3
+1229c1232,1233
+< 86B5:0AB1  81 E1 FFF0				and	cx,0FFF0h
+---
+> 86B5:0AB1  83 E1 F0				and	cx,0FFF0h
+> 86B5:0AB4  90					nop
+1688c1692
+< 86B5:0DB3  2D 0001				sub	ax,1
+---
+> 86B5:0DB3  83 E8 01				sub	ax,1
+1700c1704,1705
+< 86B5:0DCE  8B E5				mov	sp,bp
+---
+> 86B5:0DCE  90					nop
+> 86B5:0DCF  90					nop
+2087c2092
+< 86B5:1103  3D 0002				cmp	ax,2
+---
+> 86B5:1103  83 F8 02				cmp	ax,2
+2116c2121
+< 86B5:112E  3D 0002				cmp	ax,2
+---
+> 86B5:112E  83 F8 02				cmp	ax,2
+2132c2137
+< 86B5:1142  3D 0003				cmp	ax,3
+---
+> 86B5:1142  83 F8 03				cmp	ax,3
+2346c2351,2352
+< 86B5:126F  8B E5				mov	sp,bp
+---
+> 86B5:126F  90					nop
+> 86B5:1270  90					nop
+2411c2417,2418
+< 86B5:12CD  8B E5				mov	sp,bp
+---
+> 86B5:12CD  90					nop
+> 86B5:12CE  90					nop

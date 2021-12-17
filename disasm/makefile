@@ -1,6 +1,6 @@
 
 all:     	    \
-#	sb16.com    \
+	sb16.com    \
 	gf1digi.com \
 	gf166.com   \
 	digvesa.com 
